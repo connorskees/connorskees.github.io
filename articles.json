@@ -1,0 +1,219 @@
+[
+  {
+    "title": "Speculation in JavaScriptCore",
+    "author": "Filip Pizlo",
+    "url": "https://webkit.org/blog/10308/speculation-in-javascriptcore/",
+    "tags": ["jit", "speculation", "compiler", "javascript", "webkit"],
+    "score": 10
+  },
+  {
+    "title": "JITSploitation I: A JIT Bug",
+    "author": "Samuel Groß",
+    "url": "https://googleprojectzero.blogspot.com/2020/09/jitsploitation-one.html",
+    "tags": [
+      "jit",
+      "speculation",
+      "compiler",
+      "javascript",
+      "project zero",
+      "webkit",
+      "exploit"
+    ],
+    "score": 8
+  },
+  {
+    "title": "JITSploitation II: Getting Read/Write",
+    "author": "Samuel Groß",
+    "url": "https://googleprojectzero.blogspot.com/2020/09/jitsploitation-two.html",
+    "tags": [
+      "jit",
+      "speculation",
+      "compiler",
+      "javascript",
+      "project zero",
+      "webkit",
+      "exploit"
+    ],
+    "score": 8
+  },
+  {
+    "title": "JITSploitation III: Subverting Control Flow",
+    "author": "Samuel Groß",
+    "url": "https://googleprojectzero.blogspot.com/2020/09/jitsploitation-three.html",
+    "tags": [
+      "jit",
+      "speculation",
+      "compiler",
+      "javascript",
+      "project zero",
+      "webkit",
+      "exploit"
+    ],
+    "score": 8
+  },
+  {
+    "title": "QUESTIONABLE ADVICE: THE TRAP OF THE PREMATURE SENIOR",
+    "author": "Charity Majors",
+    "url": "https://charity.wtf/2020/11/01/questionable-advice-the-trap-of-the-premature-senior/",
+    "tags": ["career"],
+    "score": 5
+  },
+  {
+    "title": "Writing Python inside your Rust code — Part 1",
+    "author": "Mara Bos",
+    "url": "https://blog.m-ou.se/writing-python-inside-rust-1/",
+    "tags": ["rust", "python", "procedural macros", "parsing"],
+    "score": 7
+  },
+  {
+    "title": "I want off Mr. Golang's Wild Ride",
+    "author": "Amos",
+    "url": "https://fasterthanli.me/articles/i-want-off-mr-golangs-wild-ride",
+    "tags": ["rust", "go"],
+    "score": 9
+  },
+  {
+    "title": "What's in a Rainbow table?",
+    "author": "Amos",
+    "url": "https://fasterthanli.me/articles/whats-in-a-rainbow-table",
+    "tags": ["rainbow table", "rust", "hashing", "cryptography"],
+    "score": 10
+  },
+  {
+    "title": "Small strings in Rust",
+    "author": "Amos",
+    "url": "https://fasterthanli.me/articles/small-strings-in-rust",
+    "tags": ["rust", "optimization", "allocators"],
+    "score": 7
+  },
+  {
+    "title": "Efficient Booleans algorithms for triangulated meshes of geometric modeling",
+    "author": "X. Jiang et al.",
+    "url": "http://www.cad-journal.net/files/vol_13/CAD_13(4)_2016_419-430.pdf",
+    "tags": ["3d", "algorithm", "boolean geometry"],
+    "score": 4
+  },
+  {
+    "title": "Binary Banshees and Digital Demons",
+    "author": "JeanHeyd Meneide (@__phantomderp)",
+    "url": "https://thephd.dev/binary-banshees-digital-demons-abi-c-c++-help-me-god-please",
+    "tags": ["ABI", "C", "C++"],
+    "score": 7
+  },
+  {
+    "title": "things rust shipped without",
+    "author": "Graydon Hoare",
+    "url": "https://graydon2.dreamwidth.org/218040.html",
+    "tags": ["rust"],
+    "score": 7
+  },
+  {
+    "title": "Stop the Vertical Tab Madness",
+    "author": "James Hague",
+    "url": "https://prog21.dadgum.com/76.html",
+    "tags": [],
+    "score": 7
+  },
+  {
+    "title": "Dark corners of Unicode",
+    "author": "eevee",
+    "url": "https://eev.ee/blog/2015/09/12/dark-corners-of-unicode/",
+    "tags": ["unicode", "utf-8", "utf-16", "ascii", "text", "javascript"],
+    "score": 9
+  },
+  {
+    "title": "PHP: a fractal of bad design",
+    "author": "eevee",
+    "url": "https://eev.ee/blog/2012/04/09/php-a-fractal-of-bad-design/",
+    "tags": ["PHP"],
+    "score": 9
+  },
+  {
+    "title": "A New Backend for Cranelift, Part 1: Instruction Selection",
+    "author": "Chris Fallin",
+    "url": "https://cfallin.org/blog/2020/09/18/cranelift-isel-1/",
+    "tags": [
+      "compiler",
+      "compiler backend",
+      "cranelift",
+      "instruction selection",
+      "ir"
+    ],
+    "score": 9
+  },
+  {
+    "title": "Index 1,600,000,000 Keys with Automata and Rust",
+    "author": "Andrew Gallant (burntsushi)",
+    "url": "https://blog.burntsushi.net/transducers/",
+    "tags": [
+      "fst",
+      "data structures",
+      "algorithms",
+      "compression",
+      "automata",
+      "text search",
+      "unicode",
+      "levenshtein"
+    ],
+    "score": 9
+  },
+  {
+    "title": "ripgrep is faster than {grep, ag, git grep, ucg, pt, sift}",
+    "author": "Andrew Gallant (burntsushi)",
+    "url": "https://blog.burntsushi.net/ripgrep/",
+    "tags": [
+      "regex",
+      "simd",
+      "automata",
+      "text search",
+      "unicode",
+      "optimization",
+      "benchmarking"
+    ],
+    "score": 10
+  },
+  {
+    "title": "The language strangeness budget",
+    "author": "Steve Klabnik",
+    "url": "https://steveklabnik.com/writing/the-language-strangeness-budget",
+    "tags": ["language design", "rust", "haskell"],
+    "score": 6
+  },
+  {
+    "title": "It’s Not Wrong that \"🤦🏼‍♂️\".length == 7",
+    "author": "Henri Sivonen",
+    "url": "https://hsivonen.fi/string-length/",
+    "tags": [
+      "unicode",
+      "text",
+      "utf-8",
+      "utf-16",
+      "utf-32",
+      "python",
+      "rust",
+      "javascript"
+    ],
+    "score": 10
+  },
+  {
+    "title": "ARM64 Assembly Language Notes",
+    "author": "Dixie State University",
+    "url": "https://cit.dixie.edu/cs/2810/arm64-assembly.html",
+    "tags": ["armv8", "assembly"],
+    "score": 8
+  },
+  {
+    "title": "CTRL-Z was never actually an End-Of-File character in MS-DOS.",
+    "author": "Jonathan de Boyne Pollard",
+    "url": "http://jdebp.info/FGA/dos-character-26-is-not-special.html",
+    "tags": ["MS-DOS", "text"],
+    "score": 5
+  },
+  {
+    "title": "Idioms of Dynamic Languages",
+    "author": "Will Chrichton",
+    "url": "https://willcrichton.net/notes/idioms-of-dynamic-languages/",
+    "tags": ["programming languages", "python", "rust", "java"],
+    "score": 6
+  }
+]
