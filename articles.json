@@ -215,5 +215,12 @@
     "url": "https://willcrichton.net/notes/idioms-of-dynamic-languages/",
     "tags": ["programming languages", "python", "rust", "java"],
     "score": 6
+  },
+  {
+    "title": "Monoids Without Tears",
+    "author": "Scott Wlaschin",
+    "url": "https://fsharpforfunandprofit.com/posts/monoids-without-tears/",
+    "tags": ["monoids", "functional programming"],
+    "score": 10
   }
 ]
