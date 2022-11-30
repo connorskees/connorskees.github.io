@@ -1,8 +1,13 @@
-# The PNG File Format
++++
+title = "The PNG File Format"
+date = "1970-01-01"
++++
+
+<!-- # The PNG File Format -->
 
 The PNG file format specifies a way to losslessly encode bitmaps. It is the most popular and ubiquitous format for storing and transmitting images where the quality of the image is important. This blog post intends to describe, in-depth, all algorithms and ideas behind the PNG file format.
 
-Namely, this blog post will describe -- in almost too much detail -- the process for decoding and rendering PNG files, color spaces and pixel formats, gamma correction, the history and intuition behind Adam7 interlacing, text compression and DEFLATE, data corruption, advanced SIMD algorithms for decoding filters 8x faster, and novel SIMD algorithms not yet in production that have the potential to speed up decoding by ~32x.
+Namely, this blog post will describe — in almost too much detail — the process for decoding and rendering PNG files, color spaces and pixel formats, gamma correction, the history and intuition behind Adam7 interlacing, text compression and DEFLATE, data corruption, advanced SIMD algorithms for decoding filters 8x faster, and novel SIMD algorithms not yet in production that have the potential to speed up decoding by ~32x.
 
 It is my hope that after reading this article, you will understand not only the PNG file, but also many core technologies underlying the web, computer graphics, and systems-level programming.
 

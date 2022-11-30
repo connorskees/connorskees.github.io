@@ -1,31 +1,35 @@
 # The URL the site will be built for
-base_url = "https://connorskees.github.com"
+base_url = "http://localhost:8000"
+# base_url = "https://connorskees.github.com"
 
 # Whether to automatically compile all Sass files in the sass directory
 compile_sass = true
 
 # Whether to build a search index to be used later on by a JavaScript library
 build_search_index = true
+minify_html = true
+generate_feed = true
 
 theme = "apollo"
 
 [markdown]
-# Whether to do syntax highlighting
-# Theme can be customised by setting the `highlight_theme` variable to a theme supported by Zola
 highlight_code = true
+highlight_theme = "ayu-dark"
+
 
 [extra]
 mode = "dark"
 menu = [
     { name = "Home", url = "/", weight = 2 },
-    { name = "All posts", url = "/posts", weight = 2 },
-    { name = "About", url = "/about", weight = 3 },
-    { name = "Tags", url = "/tags", weight = 4 },
+    # { name = "All posts", url = "/posts", weight = 2 },
+    # { name = "About", url = "/about", weight = 3 },
+    # { name = "Tags", url = "/tags", weight = 4 },
 ]
+socials = []
 # Put all your custom variables here
 
-[[extra.socials]]
-icon = "github"
-name = "GitHub"
-url = "https://github.com/connorskees/"
+# [[extra.]]
+# icon = "github"
+# name = "GitHub"
+# url = "https://github.com/connorskees/"
 

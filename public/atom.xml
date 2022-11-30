@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+	<title></title>
+	<link href="http://localhost:8000/atom.xml" rel="self" type="application/atom+xml"/>
+  <link href="http://localhost:8000"/>
+	<generator uri="https://www.getzola.org/">Zola</generator>
+	<updated>1970-01-01T00:00:00+00:00</updated>
+	<id>http://localhost:8000/atom.xml</id>
+	<entry xml:lang="en">
+		<title>The PNG File Format</title>
+		<published>1970-01-01T00:00:00+00:00</published>
+		<updated>1970-01-01T00:00:00+00:00</updated>
+		<link rel="alternate" href="http://localhost:8000/blog/png/" type="text/html"/>
+		<id>http://localhost:8000/blog/png/</id>
+		<content type="html">&lt;!-- # The PNG File Format --&gt;
+&lt;p&gt;The PNG file format specifies a way to losslessly encode bitmaps. It is the most popular and ubiquitous format for storing and transmitting images where the quality of the image is important. This blog post intends to describe, in-depth, all algorithms and ideas behind the PNG file format.&lt;&#x2F;p&gt;
+&lt;p&gt;Namely, this blog post will describe -- in almost too much detail -- the process for decoding and rendering PNG files, color spaces and pixel formats, gamma correction, the history and intuition behind Adam7 interlacing, text compression and DEFLATE, data corruption, advanced SIMD algorithms for decoding filters 8x faster, and novel SIMD algorithms not yet in production that have the potential to speed up decoding by ~32x.&lt;&#x2F;p&gt;
+&lt;p&gt;It is my hope that after reading this article, you will understand not only the PNG file, but also many core technologies underlying the web, computer graphics, and systems-level programming.&lt;&#x2F;p&gt;
+&lt;!--
+## Comparison to other formats
+
+JPEG:
+GIF:
+WEBP:
+--&gt;
+&lt;h2 id=&quot;general-structure&quot;&gt;General structure&lt;&#x2F;h2&gt;
+&lt;p&gt;At a high level, a PNG file is composed of &amp;quot;magic bytes&amp;quot; followed by a series of &amp;quot;chunks.&amp;quot;&lt;&#x2F;p&gt;
+&lt;p&gt;Magic bytes can be found in almost every file format. They are used to identify file types quickly, and in the case of PNGs, also serve to quickly identify common forms of data corruption. If a PNG&#x27;s magic bytes are malformed, the rest of the file will be as well. &lt;&#x2F;p&gt;
+&lt;p&gt;Following the magic bytes is a series of &amp;quot;chunks.&amp;quot; &amp;quot;Chunk&amp;quot; in this context refers to a pre-defined set of bytes that can include things like the image&#x27;s dimensions, free-form text, the actual pixel data of the PNG file, or other metadata. The actual structure and names of these chunks is discussed more later in this article.&lt;&#x2F;p&gt;
+&lt;!-- The PNG begins with a PNG file&#x27;s magic bytes followed by a header chunk and ending with an EOF chunk. --&gt;
+&lt;!-- , followed by the IHDR (image header) chunk, 1 or more IDAT (image data) chunks, and ending with an IEND (image end) chunk. --&gt;
+&lt;h3 id=&quot;magic-bytes&quot;&gt;Magic bytes&lt;&#x2F;h3&gt;
+&lt;p&gt;&lt;img src=&quot;https:&#x2F;&#x2F;user-images.githubusercontent.com&#x2F;39542938&#x2F;204681347-5fe0f6fb-fa8d-4a20-a165-de4ee66057b8.png&quot; alt=&quot;image&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;The magic bytes of a PNG file are used to quickly determine whether or not the file is in fact a PNG as well as easily identify common forms of file corruption. The magic bytes are the same for every PNG file and do not contain any information about the image itself. The image above depicts the magic bytes in their ASCII representation. In other formats the magic bytes are:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#0f1419;color:#bfbab0;&quot;&gt;&lt;code&gt;&lt;span&gt;(decimal) 137 80 78 71 13 10 26 10
+&lt;&#x2F;span&gt;&lt;span&gt;(hex) 0x89 0x50 0x4e 0x47 0x0d 0x0a 0x1a 0x0a
+&lt;&#x2F;span&gt;&lt;span&gt;(binary) 0b1000_1001 0b0101_0000 0b0100_1110 0b0010_00111 0b0000_1101 0b0000_1010 0b0001_1010 0b0000_1010
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;The first byte (&lt;code&gt;\x89&lt;&#x2F;code&gt;) is not ASCII, as noted by its most significant bit being &lt;code&gt;1&lt;&#x2F;code&gt;. This can identify corruption related to non-ASCII input.&lt;&#x2F;p&gt;
+&lt;p&gt;The following three bytes (&lt;code&gt;PNG&lt;&#x2F;code&gt;) are useful in determining the file format when reading the file in a textual format.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;code&gt;\r\n&lt;&#x2F;code&gt; and &lt;code&gt;\n&lt;&#x2F;code&gt;, respectively DOS and UNIX line endings are useful in detecting a very common form of corruption that occurs when transferring files between UNIX systems and Windows machines.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;code&gt;\x1a&lt;&#x2F;code&gt;, or the ctrl+z character, is said to have special behavior on MS-DOS systems. The exact behavior is &lt;a href=&quot;http:&#x2F;&#x2F;jdebp.info&#x2F;FGA&#x2F;dos-character-26-is-not-special.html&quot;&gt;a bit contentious&lt;&#x2F;a&gt;, but in general this character being present prevents users from accidentally printing binary content to their terminal on such systems.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;chunks&quot;&gt;Chunks&lt;&#x2F;h2&gt;
+&lt;p&gt;Chunks are split into 2 classes: required (critical) and optional (ancillary). The required cb&lt;&#x2F;p&gt;
+</content>
+	</entry>
+</feed>
