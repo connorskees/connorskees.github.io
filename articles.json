@@ -222,5 +222,40 @@
     "url": "https://fsharpforfunandprofit.com/posts/monoids-without-tears/",
     "tags": ["monoids", "functional programming"],
     "score": 10
+  },
+  {
+    "title": "Everything Is Broken: Shipping rust-minidump at Mozilla – Part 1",
+    "author": "Gankra",
+    "url": "https://hacks.mozilla.org/2022/06/everything-is-broken-shipping-rust-minidump-at-mozilla/",
+    "tags": ["rust", "minidump", "mozilla", "calling conventions"],
+    "score": 5
+  },
+  {
+    "title": "Fuzzing rust-minidump for Embarrassment and Crashes – Part 2",
+    "author": "Gankra",
+    "url": "https://hacks.mozilla.org/2022/06/fuzzing-rust-minidump-for-embarrassment-and-crashes/",
+    "tags": ["rust", "minidump", "mozilla", "fuzzing"],
+    "score": 5
+  },
+  {
+    "title": "Rust Performance: A story featuring perf and flamegraph on Linux",
+    "author": "Adam Perry",
+    "url": "https://blog.anp.lol/rust/2016/07/24/profiling-rust-perf-flamegraph/",
+    "tags": ["rust", "performance", "optimization", "profiling"],
+    "score": 7
+  },
+  {
+    "title": "Rust performance: finishing the job",
+    "author": "Mike Savage",
+    "url": "https://mikejsavage.co.uk/blog/rust-performance-finishing-the-job.html",
+    "tags": ["rust", "performance", "optimization", "simd", "vectorization"],
+    "score": 7
+  },
+  {
+    "title": "Really finishing the job",
+    "author": "Mike Savage",
+    "url": "http://mikejsavage.co.uk/blog/really-finishing-the-job.html",
+    "tags": ["rust", "performance", "optimization", "simd", "vectorization"],
+    "score": 6
   }
 ]
