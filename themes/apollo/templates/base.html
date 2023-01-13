@@ -1,0 +1,47 @@
+{% import "macros/macros.html" as post_macros %}
+
+<!DOCTYPE html>
+<html>
+{% include "partials/header.html" %}
+
+<body>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-R0T6WNHCFH"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-R0T6WNHCFH');
+    </script>
+    <div class="content">
+        {% include "partials/nav.html" %}
+
+        {# Post page is the default #}
+        {% block main_content %}
+            Nothing here?!
+        {% endblock main_content %}
+    </div>
+    <script type="text/javascript">
+        window.addEventListener('load', function () {
+            for (const ref of document.getElementsByClassName('footnote-reference')) {
+                const hash = ref.children[0].hash.substring(1);
+                const refhash = 'ref:' + hash;
+                ref.id = refhash;
+            }
+
+            for (const footnote of document.getElementsByClassName('footnote-definition')) {
+                const hash = footnote.id;
+                const refhash = 'ref:' + hash;
+                const backlink = document.createElement('a');
+                backlink.href = '#' + refhash;
+                backlink.className = 'footnote-backlink';
+                backlink.innerText = '↩';
+                const paras = footnote.children;
+                const lastPara = paras[paras.length - 1];
+                lastPara.appendChild(backlink);
+            }
+        });
+    </script>
+</body>
+
+</html>
