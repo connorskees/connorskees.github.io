@@ -2,14 +2,17 @@
 title = "Optimizing Low Hanging Fruit in `miniz_oxide`"
 date = "2023-01-12"
 +++
+<!-- title = "Optimizing Low Hanging Fruit in `miniz_oxide`" -->
 
 I'm working on a large blog post investigating the performance characterstics of various PNG decoders across several programming languages. A large part of this work is profiling and benchmarking the PNG decoders.
 
-The first decoder I looked at was [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the Rust ecosystem. Rust is easy to profile and benchmark, because it compiles to native code, so I can reuse existing tools built for C and C++.
+The first decoder I'm looking at is [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the Rust ecosystem.
+
+<!-- Rust is easy to profile and benchmark, because it compiles to native code, so I can reuse existing tools built for C and C++. -->
 
 The image I like to start out with is this [PNG of the periodic table of elements](https://commons.wikimedia.org/wiki/File:Periodic_table_large.png) from Wikimedia Commons. This file is in the public domain, so we can do whatever we want with it and it's a pretty big size at ~2.2mb.
 
-`image-rs/png` is just a library for decoding images, so we have to set up a binary to run ourselves. We create a simple rust program that looks like this:
+`image-rs/png` is just a library for decoding images, so we have to set up a binary to be able to benchmark it. We create a simple rust program that looks like this:
 
 ```rs
 fn main() {
@@ -32,9 +35,9 @@ fn main() {
 }
 ```
 
-This isn't a perfect benchmark, but it works for our purposes right now. We make a few optimizations to improve it. Namely, we avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and we pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
+This isn't perfect, but it works for our purposes right now. A more robust solution would elide the command line altogether and only benchmark the PNG operations themselves, but at the start we just want a rough idea of how it performs. We make a few optimizations to improve it. Namely, we avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and we pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
 
-We use [`std::hint::black_box`](https://doc.rust-lang.org/stable/std/hint/fn.black_box.html) to make sure the compiler doesn't optimize anything different just because we aren't actually using the result of the decoding.
+We use [`std::hint::black_box`](https://doc.rust-lang.org/stable/std/hint/fn.black_box.html) to make sure the compiler doesn't optimize anything differently just because we aren't actually using the result of the decoding.
 
 So how does `image-rs/png` do on this benchmark?
 
@@ -43,7 +46,7 @@ cargo b --release
 hyperfine ./target/release/test-png
 ```
 
-For profiling we use [`hyperfine`](https://github.com/sharkdp/hyperfine), which is a great tool for ad hoc profiling of command line utilities. If we execute the above commands, `hyperfine` prints
+For benchmarking we use [`hyperfine`](https://github.com/sharkdp/hyperfine), which is a great tool for ad hoc benchmarking of command line utilities. If we execute the above commands, `hyperfine` prints
 
 ```sh
 Benchmark 1: ./target/release/test-image-png
@@ -188,7 +191,7 @@ miniz_oxide::core::inflate::transfer:
         pop     rax
         ret
 
-; ... several lines of panic handling code is omitted
+; ... several lines of panic handling code are omitted
 ```
 
 Let's break the disassembly down in chunks.
@@ -206,7 +209,7 @@ movzx   eax, byte ptr [rdi + rax]
 mov     byte ptr [rdi + rcx], al
 ```
 
-Each instance corresponds to the line `out_slice[out_pos] = out_slice[(source_pos + X) & out_buf_size_mask];` in the original source. Since we compiled this on Linux, we're using the [System V ABI](https://en.wikipedia.org/wiki/X86_calling_conventions#System_V_AMD64_ABI). The first integer function parameter, in this case `source_pos` is passed to the function in `rdx`. So we move the value of `source_pos` from the register `rdx` to the register `rax`. Then we bitmask it with `r9`, which contains the value of `out_buf_size_mask`.
+Each instance corresponds to the line `out_slice[out_pos] = out_slice[(source_pos + X) & out_buf_size_mask];` in the original source. Since we compiled this on Linux, we're using the [System V calling conventions](https://en.wikipedia.org/wiki/X86_calling_conventions#System_V_AMD64_ABI). We pass in `out_slice` as the first argument. In rust, slices are represented by a pointer and a length. These values get passed to our function in `rdi` and `rsi` respectively. The next parameter, in this case `source_pos`, is passed to the function in `rdx`. So we move the value of `source_pos` from the register `rdx` to the register `rax`. Then we bitmask it with `r9`, which contains the value of `out_buf_size_mask`.
 
 Then we compare that bitmasked value to the length of `out_slice` stored in the register `rsi`. The `jae` instruction, jump if above or equal, does exactly what it sounds like. If `rax` is greater than or equal to the length, then we jump to `.LBB0_12`, which sets us up to panic. This is an array bounds check. We have a similar check in the two instructions below, where we check that `out_pos` is also in the bounds of the slice. 
 
@@ -562,26 +565,7 @@ gives us
 ( 13)        8 ( 0.0%, 99.8%): 273
 ( 14)        8 ( 0.0%, 99.8%): 277
 ( 15)        8 ( 0.0%, 99.8%): 305
-( 16)        8 ( 0.0%, 99.8%): 313
-( 17)        8 ( 0.0%, 99.8%): 80
-( 18)        7 ( 0.0%, 99.8%): 244
-( 19)        7 ( 0.0%, 99.8%): 36
-( 20)        7 ( 0.0%, 99.8%): 92
-( 21)        6 ( 0.0%, 99.8%): 148
-( 22)        6 ( 0.0%, 99.8%): 160
-( 23)        6 ( 0.0%, 99.8%): 248
-( 24)        6 ( 0.0%, 99.8%): 259
-( 25)        6 ( 0.0%, 99.8%): 461
-( 26)        6 ( 0.0%, 99.8%): 56
-( 27)        6 ( 0.0%, 99.8%): 60
-( 28)        5 ( 0.0%, 99.8%): 12
-( 29)        5 ( 0.0%, 99.8%): 140
-( 30)        5 ( 0.0%, 99.8%): 152
-( 31)        5 ( 0.0%, 99.8%): 184
-( 32)        5 ( 0.0%, 99.8%): 28
-( 33)        5 ( 0.0%, 99.8%): 40
-( 34)        4 ( 0.0%, 99.8%): 1108
-... 200 more results
+... 215 more results omitted
 ```
 
 Quite a bit of variance. But if we look at the percentages, 99.5% of cases have a difference of 1. The rest of the cases all have pretty low counts relative to the total. So now we know which case we want to investigate.
@@ -719,9 +703,29 @@ test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 # ... full test results omitted
 ```
 
-All of the tests pass, this is likely a sound optimization. At this point we should be comfortable making a PR with our changes. 
+All of the tests pass; this is likely a sound optimization. At this point we should be comfortable making a PR with our changes. 
 
-This patch was submitted as [#131](https://github.com/Frommi/miniz_oxide/pull/131) to the `miniz_oxide` repo. It contains a bit more than described here. `miniz_oxide` has its own
+This patch was submitted as [#131](https://github.com/Frommi/miniz_oxide/pull/131) to the `miniz_oxide` repo. It contains a bit more than described here. `miniz_oxide` has its own benchmark suite, and after looking at it we can make a few small changes to improve performance there as well. 
+
+The results of our optimization are pretty striking: for some inputs we see a more than 2x improvement. `miniz_oxide` is ported from a C library that has roughly the same performance characteristics. What this means is, after our changes, `miniz_oxide` is now also more than 2x faster than the original C implementation for these inputs.
+
+The relevant benchmarks are:
+
+```rs
+// before
+test oxide::decompress_compressed_lvl_1 ... bench:      89,253 ns/iter (+/- 1,412)
+test oxide::decompress_compressed_lvl_6 ... bench:     176,299 ns/iter (+/- 6,266)
+test oxide::decompress_compressed_lvl_9 ... bench:     175,840 ns/iter (+/- 3,131)
+```
+
+```rs
+// after
+test oxide::decompress_compressed_lvl_1 ... bench:      83,992 ns/iter (+/- 1,347)
+test oxide::decompress_compressed_lvl_6 ... bench:      76,640 ns/iter (+/- 2,288)
+test oxide::decompress_compressed_lvl_9 ... bench:      76,791 ns/iter (+/- 1,978)
+```
+
+
 
 [^1]: In practice this was verified by looking at the annotated disassembly in `perf report`
 <!-- https://github.com/ccurtsinger/stabilizer -->
