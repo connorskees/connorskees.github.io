@@ -448,11 +448,11 @@ Summary
     1.01 ± 0.03 times faster than './original'
 ```
 
-A 1% improvement. These results are barely above random noise, even though we removed bounds checks. We're a bit of new work now for the 2 assertions at the start of the function, but that wouldn't be the cause for such a small speed-up. Fundamentally the performance benefits from removing bounds checks aren't helping us here and the optimizer isn't able to do much better even with them gone. If we want to speed up this function, we have to start thinking about the algorithm.
+A 1% improvement. These results are barely above random noise, even though we removed bounds checks. We're doing a bit of new work now for the 2 assertions at the start of the function, but that wouldn't be the cause for such a small speed-up. Fundamentally the performance benefits from removing bounds checks aren't helping us here and the optimizer isn't able to do much better even with them gone. If we want to speed up this function, we have to start thinking about the algorithm.
 
 Looking at the assembly, right now our implementation is entirely scalar. We load one array element at a time, mask it, and then copy it to the out position. It should be trivial for the compiler to vectorize this, so what's preventing it?
 
-There's two problems here. First, we mask the array indices with `out_buf_size_mask`, which means its possible for us to have to copy non-consecutive elements from the array. Non-consecutive reads may prevent us from using SIMD here at all.
+There's two problems here. First, we mask the array indices with `out_buf_size_mask`, which means its possible for us to be forced to copy non-consecutive elements from the array. Non-consecutive reads may prevent us from using SIMD here at all.
 
 The other issue is that our data is highly dependent on previous calculations. This is especially apparent when `source_pos` and `out_pos` differ by less than 4. We can see this if we think through an example where our array is `[1, 2, 3, 4, 5, 6, 7, 8]`, `source_pos` is 0, and `out_pos` is 2. We can pretend we don't do any masking for now. Here's what the code looks like if we substitute concrete values for `source_pos` and `out_pos`:
 
@@ -508,7 +508,7 @@ We run in release mode just because it's prohibitively slow to execute in debug 
 (  1)   255047 (100.0%,100.0%): 18446744073709551615
 ```
 
-Looking at the output, the first number in parentheses is just the line number of the output. The second number is the count for the given value. The last number in the input is what we printed.
+Looking at the output, the first number in parentheses is just the line number of the output. The second number is the count for the given value. The last number in the output is the value that we printed.
 
 Based on this, we can see that the mask value is always the same. It looks like some large 64 bit integer. I don't have special 64 bit integers memorized, so lets open up a python repl to see what it looks like in binary.
 
@@ -729,10 +729,8 @@ test oxide::decompress_compressed_lvl_9 ... bench:      76,791 ns/iter (+/- 1,97
 
 [^1]: In practice this was verified by looking at the annotated disassembly in `perf report`
 <!-- https://github.com/ccurtsinger/stabilizer -->
-<!-- https://en.wikipedia.org/wiki/X86_calling_conventions#System_V_AMD64_ABI -->
 <!-- http://sandsoftwaresound.net/perf/perf-tutorial-hot-spots/ -->
 <!-- https://danluu.com/branch-prediction/ -->
 <!-- http://rhaas.blogspot.com/2012/06/perf-good-bad-ugly.html -->
-<!-- A High Level Overview of Sass Compilation -->
 
 <!-- By default `perf report` uses the AT&T assembly syntax, but I find this syntax really noisy. We can force it to use the Intel syntax by passing `-Mintel`, just like with `objdump`. -->
