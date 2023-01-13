@@ -4,13 +4,13 @@ date = "2023-01-12"
 +++
 <!-- title = "Optimizing Low Hanging Fruit in `miniz_oxide`" -->
 
-I'm working on a large blog post investigating the performance characterstics of various PNG decoders across several programming languages. A large part of this work is profiling and benchmarking the PNG decoders.
+I'm working on a large blog post investigating the performance characterstics of various PNG decoders across several programming languages. A large part of this work is profiling and benchmarking them.
 
 The first decoder I'm looking at is [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the Rust ecosystem.
 
 <!-- Rust is easy to profile and benchmark, because it compiles to native code, so I can reuse existing tools built for C and C++. -->
 
-The image I like to start out with is this [PNG of the periodic table of elements](https://commons.wikimedia.org/wiki/File:Periodic_table_large.png) from Wikimedia Commons. This file is in the public domain, so we can do whatever we want with it and it's a pretty big size at ~2.2mb.
+The image I like to start with for this sort of work is this [PNG of the periodic table of elements](https://commons.wikimedia.org/wiki/File:Periodic_table_large.png) from Wikimedia Commons. This file is in the public domain, so we can do whatever we want with it and it's a pretty big size at ~2.2mb.
 
 `image-rs/png` is just a library for decoding images, so we have to set up a binary to be able to benchmark it. We create a simple rust program that looks like this:
 
