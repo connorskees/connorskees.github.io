@@ -6,9 +6,9 @@ date = "2023-01-12"
 
 I'm working on a large blog post investigating the performance characterstics of various PNG decoders across several programming languages. A large part of this work is profiling and benchmarking them.
 
-The first decoder I'm looking at is [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the Rust ecosystem.
+The first decoder I'm looking at is [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the rust ecosystem.
 
-<!-- Rust is easy to profile and benchmark, because it compiles to native code, so I can reuse existing tools built for C and C++. -->
+<!-- rust is easy to profile and benchmark, because it compiles to native code, so I can reuse existing tools built for C and C++. -->
 
 The image I like to start with for this sort of work is this [PNG of the periodic table of elements](https://commons.wikimedia.org/wiki/File:Periodic_table_large.png) from Wikimedia Commons. This file is in the public domain, so we can do whatever we want with it and it's a pretty big size at ~2.2mb.
 
@@ -269,7 +269,9 @@ movzx   eax, byte ptr [rdi + rax]
 mov     byte ptr [rdi + rcx], al
 ```
 
-The bounds checks are still there :/ LLVM wasn't smart enough to elide them based on our assert at the start of the function. Admittedly the check was a bit complex. What if we try asserting at the start of the loop body? That should be a lot simpler for the compiler to reason about.
+The bounds checks are still there :/
+
+LLVM wasn't smart enough to elide them based on our assert at the start of the function. Admittedly the check was a bit complex. What if we try asserting at the start of the loop body? That should be a lot simpler for the compiler to reason about.
 
 Our new code looks like this
 
@@ -462,14 +464,14 @@ out_slice = [1, 2, 3, 4, 5, 6, 7, 8]
 out_slice[2] = out_slice[0]
 out_slice[3] = out_slice[1]
 
-# here, we depend on the results of the first line of our loop. if we tried to
-# load all the values for this iteration at once, we wouldn't get the correct
-# result
+# !!!
 out_slice[4] = out_slice[2]
 out_slice[5] = out_slice[3]
 ```
 
-After the first iteration of the loop, the array is now `[1, 2, 1, 2, 1, 2, 7, 8]`. We'll have to be really creative if we end up having to work around this depedency in the general case.
+After the first iteration, the array is now `[1, 2, 1, 2, 1, 2, 7, 8]`.
+
+On the third line of our loop, we depend on the results of the first line of our loop. if we tried to load all the values for this iteration at once, we wouldn't get the correct result. We'll have to be really creative if we end up having to work around this depedency in the general case[^2].
 
 Let's look at the first problem -- masking can cause non-consecutive reads. Is there any way around this? One thing we could look at is the value we're masking by. If it's always the same value, we might be able to make some interesting optimizations. To inspect its value, we can use an ad hoc profiling tool called [`counts`](https://blog.mozilla.org/nnethercote/2018/07/24/ad-hoc-profiling/) that I really love. To use it, we just need to insert some prints into the code and then pipe the results to `counts`.
 
@@ -517,7 +519,7 @@ Based on this, we can see that the mask value is always the same. It looks like 
 '0b1111111111111111111111111111111111111111111111111111111111111111'
 ```
 
-It's all ones. That looks promising. Is this 64 ones?
+The number is all ones. Let's check how long it is. The number we're hoping for is 64:
 
 ```python
 >>> len(_) - 2
@@ -690,7 +692,7 @@ Summary
     1.54 ± 0.02 times faster than './original'
 ```
 
-_What_. A 50% improvement? On decoding an entire PNG? Let's double check this is real and that we didn't break anything by running `miniz_oxide`'s test suite.
+_A 50% improvement_. This benchmark is testing how long it takes to decode _an entire PNG_, so this would be a pretty meaningful optimization. Let's double check this is real and that we didn't break anything by running `miniz_oxide`'s test suite.
 
 ```sh
 cd ../miniz_oxide
@@ -725,9 +727,9 @@ test oxide::decompress_compressed_lvl_6 ... bench:      76,640 ns/iter (+/- 2,28
 test oxide::decompress_compressed_lvl_9 ... bench:      76,791 ns/iter (+/- 1,978)
 ```
 
-
-
 [^1]: In practice this was verified by looking at the annotated disassembly in `perf report`
+
+[^2]: An implementation of this problem in the general case can be found [here](https://gist.github.com/connorskees/955439d1ad62a4dcbe4f594a293c6187), though it ends up not being much faster
 <!-- https://github.com/ccurtsinger/stabilizer -->
 <!-- http://sandsoftwaresound.net/perf/perf-tutorial-hot-spots/ -->
 <!-- https://danluu.com/branch-prediction/ -->
