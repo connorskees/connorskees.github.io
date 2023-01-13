@@ -453,7 +453,7 @@ Looking at the assembly, right now our implementation is entirely scalar. We loa
 
 There's two problems here. First, we mask the array indices with `out_buf_size_mask`, which means its possible for us to have to copy non-consecutive elements from the array. Non-consecutive reads may prevent us from using SIMD here at all.
 
-The other issue is that our data is highly dependent on previous calculations. This is especially apparent when `source_pos` and `out_pos` differ by less than 4. We can see this if we think through an example where our array is `[1, 2, 3, 4, 5, 6, 7, 8]`, `source_pos` is 0, and `out_pos` is 2. We can pretend we don't do any masking for now. Here's what happens if we substitute concrete values for `source_pos` and `out_pos`:
+The other issue is that our data is highly dependent on previous calculations. This is especially apparent when `source_pos` and `out_pos` differ by less than 4. We can see this if we think through an example where our array is `[1, 2, 3, 4, 5, 6, 7, 8]`, `source_pos` is 0, and `out_pos` is 2. We can pretend we don't do any masking for now. Here's what the code looks like if we substitute concrete values for `source_pos` and `out_pos`:
 
 ```python
 out_slice = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -468,7 +468,7 @@ out_slice[4] = out_slice[2]
 out_slice[5] = out_slice[3]
 ```
 
-After the first iteration of the loop, the array is now `[1, 2, 1, 2, 1, 2, 7, 8]`. So we need to be really creative in order to speed things up here.
+After the first iteration of the loop, the array is now `[1, 2, 1, 2, 1, 2, 7, 8]`. We'll have to be really creative if we end up having to work around this depedency in the general case.
 
 Let's look at the first problem -- masking can cause non-consecutive reads. Is there any way around this? One thing we could look at is the value we're masking by. If it's always the same value, we might be able to make some interesting optimizations. To inspect its value, we can use an ad hoc profiling tool called [`counts`](https://blog.mozilla.org/nnethercote/2018/07/24/ad-hoc-profiling/) that I really love. To use it, we just need to insert some prints into the code and then pipe the results to `counts`.
 
@@ -521,7 +521,7 @@ It's all ones. That looks promising. Is this 64 ones?
 64
 ```
 
-Ok, so in every case that we call this function, we do no masking. That's our first problem solved. We can just special case our code when `out_buf_size_mask === usize::MAX`. 
+Ok, so in every case that we call this function for this input, we don't actually do any masking. That's our first problem solved. We can just special case our code when `out_buf_size_mask === usize::MAX`. 
 
 Our next issue is the data dependency when the difference between `out_pos` and `source_pos` is small enough that they overlap. Let's see how often this comes up in practice. We can use `counts` here again to help us:
 
