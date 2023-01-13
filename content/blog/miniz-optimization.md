@@ -35,7 +35,9 @@ fn main() {
 }
 ```
 
-This isn't perfect, but it works for our purposes right now. A more robust solution would elide the command line altogether and only benchmark the PNG operations themselves, but at the start we just want a rough idea of how the library performs. We make a few optimizations to improve the benchmark. Namely, we avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and we pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
+This isn't perfect, but it works for our purposes right now. A more robust solution would elide the command line altogether and only benchmark the PNG operations themselves, but at the start we just want a rough idea of how the library performs.
+
+We make a few optimizations to improve the benchmark. Namely, we avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and we pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
 
 We use [`std::hint::black_box`](https://doc.rust-lang.org/stable/std/hint/fn.black_box.html) to make sure the compiler doesn't optimize anything differently just because we aren't actually using the result of the decoding.
 
