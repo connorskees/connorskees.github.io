@@ -521,7 +521,7 @@ It's all ones. That looks promising. Is this 64 ones?
 64
 ```
 
-Ok, so in every case that we call this function for this input, we don't actually do any masking. That's our first problem solved. We can just special case our code when `out_buf_size_mask === usize::MAX`. 
+Ok, so in every case that we call this function for this input, we don't actually do any masking. That's our first problem solved. We can just special case our code when `out_buf_size_mask === usize::MAX`.
 
 Our next issue is the data dependency when the difference between `out_pos` and `source_pos` is small enough that they overlap. Let's see how often this comes up in practice. We can use `counts` here again to help us:
 
