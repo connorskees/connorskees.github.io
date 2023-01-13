@@ -3,11 +3,11 @@ title = "Optimizing Low Hanging Fruit in `miniz_oxide`"
 date = "2023-01-12"
 +++
 
-I'm currently working on a very large blog post diving into the performance characterstics of various PNG decoders across several programming languages. As part of this work, I've begun profiling and benchmarking PNG decoders on different files.
+I'm working on a large blog post investigating the performance characterstics of various PNG decoders across several programming languages. A large part of this work is profiling and benchmarking the PNG decoders.
 
-I started by looking at [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the Rust ecosystem.
+The first decoder I looked at was [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the Rust ecosystem. Rust is easy to profile and benchmark, because it compiles to native code, so I can reuse existing tools built for C and C++.
 
-Let's look at how it performs on this [sample PNG of the periodic table of elements](https://commons.wikimedia.org/wiki/File:Periodic_table_large.png) I found on Wikimedia Commons. This file is about 2.2mb.
+The image I like to start out with is this [PNG of the periodic table of elements](https://commons.wikimedia.org/wiki/File:Periodic_table_large.png) from Wikimedia Commons. This file is in the public domain, so we can do whatever we want with it and it's a pretty big size at ~2.2mb.
 
 `image-rs/png` is just a library for decoding images, so we have to set up a binary to run ourselves. We create a simple rust program that looks like this:
 
@@ -32,9 +32,9 @@ fn main() {
 }
 ```
 
-This isn't a perfect way of benchmarking a library, but it works for our purposes right now. We make a few optimizations to improve this benchmark. Namely, we avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file at compile time instead of at runtime, and we pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
+This isn't a perfect benchmark, but it works for our purposes right now. We make a few optimizations to improve it. Namely, we avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and we pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
 
-We use `std::hint::black_box` to make sure the compiler doesn't optimize anything different just because we aren't actually using the result of the decoding.
+We use [`std::hint::black_box`](https://doc.rust-lang.org/stable/std/hint/fn.black_box.html) to make sure the compiler doesn't optimize anything different just because we aren't actually using the result of the decoding.
 
 So how does `image-rs/png` do on this benchmark?
 
@@ -51,9 +51,9 @@ Benchmark 1: ./target/release/test-image-png
   Range (min … max):   250.6 ms … 262.4 ms    11 runs
 ```
 
-So about 250ms to decode a 2mb image. Is that reasonable? We don't really know -- this is the first decoder we're looking at.
+So about 250ms to decode a 2mb image. Is that reasonable? We don't really know -- this is the first decoder we're looking at. Intuitively it feels a bit long. This is executing on a dedicated Linux server that's not running any other programs. 
 
-Out of curiosity, let's profile the binary using perf to see where it's spending its time.
+Out of curiosity, let's profile the binary using `perf` to see where it's spending its time.
 
 ```sh
 perf record -e cpu-clock ./target/release/test-png
@@ -76,15 +76,15 @@ This opens an interactive viewer in our terminal that looks something like this:
 
 ![perf report output](../perf-report-1.png)
 
-Reading this output isn't too complex. The first column displays a percentage of some sort, probably percentage of runtime. The last column shows the symbol name, which without knowing what a symbol is, we can clearly see that it contains the names of various functions and memory addresses. 
+Reading this output isn't too complex. The first column displays a percentage of execution spent in the function. The last column shows the symbol name, which is either the actual name of a function or a memory address. 
 
 Does this profile make sense? 
 
-The second line looks like it belongs. We'd expect decoding the next interlaced row to be the bulk of the time in a benchmark where we loop over the rows of a PNG file. [`image-rs/png` uses `#![forbid(unsafe)]`](https://github.com/image-rs/image-png/pull/336), which means that unless they're using an external crate, they likely don't use handwritten SIMD intrinsics to decode [PNG filters](https://www.w3.org/TR/PNG-Filters.html). LLVM _can_ do ok autovectorizing sometimes, but in general one would expect the equivalent higher level code to not be as fast.
+The second line looks like it belongs. We'd expect decoding the next interlaced row to be the bulk of the time in a benchmark where we loop over the rows of a PNG file. [`image-rs/png` uses `#![forbid(unsafe)]`](https://github.com/image-rs/image-png/pull/336), which means that unless they're using an external crate, they likely don't use handwritten SIMD intrinsics to decode [PNG filters](https://www.w3.org/TR/PNG-Filters.html). LLVM _can_ do ok autovectorizing sometimes, but in general one would expect the equivalent higher level code to not be as fast. It makes sense that this might be a bit slow.
 
 So we expect that most of the time would be spent in `png::decoder::Reader<R>::next_raw_interlaced_row`, but what about `miniz_oxide::inflate::core::transfer`?
 
-From the name it's clear that this is coming from the DEFLATE library that `image-rs/png` relies on. It sounds like all it's doing is transferring from one buffer to another. How can that take 30% of our runtime? Let's look at the implementation in `miniz_oxide`
+From the name it's clear that this is coming from the DEFLATE library that `image-rs/png` relies on. It sounds like all it's doing is transferring data from one buffer to another. If we look at the implementation in `miniz_oxide`, we can see that's exactly what it's doing:
 
 ```rs
 #[inline]
@@ -121,9 +121,9 @@ fn transfer(
 }
 ```
 
-So that's exactly what it does. Given a buffer, `out_slice`, this function will copy bytes from within starting at `source_pos` and writing them starting at `out_pos`. The specific way it does the copying is a bit more complex, but that's the gist of it.
+Given a buffer, `out_slice`, this function will read bytes from within `out_slice` starting at `source_pos` and copying them to `out_slice` starting at `out_pos`. The specific way it does the copying is a bit more complex, but that's the gist of it.
 
-Our PNG decoder spends 1/3rd of its time copying bytes. That immediately sticks out to me. Modern `memcpy` is heavily optimized and shouldn't be a bottleneck in this case. Let's look at the disassembly to see what's going wrong. When we look at the disassembly, let's ignore the bottom `match` statement. That's only executed once per function call and should have a much smaller impact on perf compared to the loop.
+Our PNG decoder spends 1/3rd of its time copying bytes. That raises a few red flags. Modern `memcpy` is heavily optimized and shouldn't be a bottleneck in this case. This function probably isn't being optimized to a straight `memcpy`, but that's the upper bound we should be targeting, and I think we should be able to get pretty close. Let's look at the disassembly to see what's going wrong. When we look at the disassembly, let's ignore the bottom `match` statement. That's only executed once per function call and should have a much smaller impact on perf compared to the loop[^1].
 
 ```asm
 miniz_oxide::core::inflate::transfer:
@@ -193,7 +193,7 @@ miniz_oxide::core::inflate::transfer:
 
 Let's break the disassembly down in chunks.
 
-We see this block repeated 4 times.
+We see a block like this repeated 4 times.
 
 ```asm
 mov     rax, rdx
@@ -206,9 +206,9 @@ movzx   eax, byte ptr [rdi + rax]
 mov     byte ptr [rdi + rcx], al
 ```
 
-Each block like this corresponds to the line `out_slice[out_pos] = out_slice[(source_pos + X) & out_buf_size_mask];` in the original source. Since we compiled this on Linux, we're using the [System V ABI](https://en.wikipedia.org/wiki/X86_calling_conventions#System_V_AMD64_ABI). The first integer function parameter, in this case `source_pos` is passed to the function in `rdx`. So we move the value of `source_pos` from the register `rdx` to the register `rax`. Then we bitmask it with `r9`, which contains the value of `out_buf_size_mask`.
+Each instance corresponds to the line `out_slice[out_pos] = out_slice[(source_pos + X) & out_buf_size_mask];` in the original source. Since we compiled this on Linux, we're using the [System V ABI](https://en.wikipedia.org/wiki/X86_calling_conventions#System_V_AMD64_ABI). The first integer function parameter, in this case `source_pos` is passed to the function in `rdx`. So we move the value of `source_pos` from the register `rdx` to the register `rax`. Then we bitmask it with `r9`, which contains the value of `out_buf_size_mask`.
 
-Then we compare that bitmasked value to the length of `out_slice`. If `rax` is greater than or equal to the length (`jae`), then we jump to `.LBB0_12`, which sets us up to panic. This is an array bounds check. We have a similar check in the two instructions below, where we check that `out_pos` is also in the bounds of the slice. 
+Then we compare that bitmasked value to the length of `out_slice` stored in the register `rsi`. The `jae` instruction, jump if above or equal, does exactly what it sounds like. If `rax` is greater than or equal to the length, then we jump to `.LBB0_12`, which sets us up to panic. This is an array bounds check. We have a similar check in the two instructions below, where we check that `out_pos` is also in the bounds of the slice. 
 
 Following that, we move the value at `out_slice[source_pos]` into the register `eax`. Then we move the lower 8 bits of that register to `out_slice[out_pos]`.
 
@@ -223,9 +223,9 @@ jne     .LBB0_2
 
 Then we add 4 to `out_pos`. During iteration we've already been adding to `source_pos`, so here we just have to increment its value by 1. Then we subtract 1 from our loop counter and jump to the start of the loop if it isn't zero.
 
-Already you should be able to see a bit of inefficiency, even if you aren't that familiar with assembly. On every iteration we perform 2 bounds checks per line, for a total of 8 bounds checks per iteration. Bounds checks do add overhead, but much like integer overflow checks, they aren't by themselves [_that_ slow](https://danluu.com/integer-overflow/). In our case, going out of bounds is exceptional and should never happen during the course of regular execution, which means the branch predictor should do a really good job here.
+You might already be able to see a bit of inefficiency, even if you aren't that familiar with assembly. On every iteration we perform 2 bounds checks per line, for a total of 8 bounds checks per iteration. Bounds checks do add overhead, but much like integer overflow checks, they aren't by themselves [_that_ slow](https://danluu.com/integer-overflow/). In our case, going out of bounds is exceptional and should never happen during the course of regular execution, which means the branch predictor should do a really good job here.
 
-Typically the problem with integer overflow checks and bounds checks is that they prevent other optimizations, like autovectorization. Perhaps that's what's happening here -- we're doing a lot of bounds checks inside a tight loop and LLVM can't optimize it that well. Let's see what removing the bounds checks does to the codegen.
+Typically the problem with integer overflow checks and bounds checks is that they prevent other optimizations, like autovectorization. Perhaps that's what's happening here -- we're doing a lot of bounds checks inside a tight loop and so LLVM can't optimize it that well. Let's see what removing the bounds checks does to the codegen.
 
 Let's start by trying to remove them in safe rust. We can try [asserting one large length condition](https://gist.github.com/kvark/f067ba974446f7c5ce5bd544fe370186#assert-conditions-beforehand) at the start of the function, and hope that LLVM is able to elide the later checks.
 
@@ -239,9 +239,8 @@ fn transfer(
     match_len: usize,
     out_buf_size_mask: usize,
 ) {
-    // todo: double check codegen with these assertions
-    assert!(out_slice.len() > ((match_len >> 2) - 1) * 4 + out_pos);
-    assert!(out_slice.len() > ((match_len >> 2) - 1) * 4 + source_pos);
+    assert!(out_slice.len() > (match_len >> 2) * 4 + out_pos - 1);
+    assert!(out_slice.len() > (match_len >> 2) * 4 + source_pos - 1);
     for _ in 0..match_len >> 2 {
         out_slice[out_pos] = out_slice[source_pos & out_buf_size_mask];
         out_slice[out_pos + 1] = out_slice[(source_pos + 1) & out_buf_size_mask];
@@ -279,7 +278,6 @@ fn transfer(
     match_len: usize,
     out_buf_size_mask: usize,
 ) {
-    // todo: verify these assertions dont fire
     for _ in 0..match_len >> 2 {
         assert!(out_slice.len() > out_pos + 3);
         assert!(out_slice.len() > source_pos + 3);
@@ -308,7 +306,7 @@ movzx   eax, byte ptr [rdi + rax]
 mov     byte ptr [r14 + rbx - 3], al
 ```
 
-The `cmp` and `jae` is still there twice for every line in the loop. At this point let's just give up and use unsafe to see if what we're trying to do will actually have a meaningful impact on the codegen. We can use [`slice::get_unchecked`](https://doc.rust-lang.org/std/primitive.slice.html#method.get_unchecked) and [`slice::get_unchecked_mut`](https://doc.rust-lang.org/std/primitive.slice.html#method.get_unchecked_mut) to elide bounds checks that we know are safe.
+The `cmp` and `jae` are still there twice for every line in the loop. At this point let's just give up and use unsafe to see if what we're trying to do will actually have a meaningful impact on the codegen. We can use [`slice::get_unchecked`](https://doc.rust-lang.org/std/primitive.slice.html#method.get_unchecked) and [`slice::get_unchecked_mut`](https://doc.rust-lang.org/std/primitive.slice.html#method.get_unchecked_mut) to elide bounds checks that we know are safe.
 
 ```rs
 fn transfer(
@@ -318,8 +316,8 @@ fn transfer(
     match_len: usize,
     out_buf_size_mask: usize,
 ) {
-    assert!(out_slice.len() > ((match_len >> 2) - 1) * 4 + out_pos);
-    assert!(out_slice.len() > ((match_len >> 2) - 1) * 4 + source_pos);
+    assert!(out_slice.len() > (match_len >> 2) * 4 + out_pos - 1);
+    assert!(out_slice.len() > (match_len >> 2) * 4 + source_pos - 1);
 
     for _ in 0..match_len >> 2 {
         unsafe {
@@ -338,7 +336,7 @@ fn transfer(
 }
 ```
 
-Let's add back our original asserts to make sure we don't accidentally do any out-of-bounds reads. What does the codegen for this look like?
+We'll add back our original asserts to make sure we don't accidentally do any out-of-bounds reads. What does the codegen for this look like?
 
 ```asm
 example::transfer:
@@ -401,7 +399,7 @@ example::transfer:
 
 No bounds checks! And a lot fewer instructions than what we started with (55 lines vs 82 originally). So how much faster is the code without bounds checks?
 
-Let's start by [vendoring our dependencies so we can modify them locally](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html). 
+Let's start by cloning the `miniz_oxide` repo and [vendoring our dependencies so we can modify them locally](https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html). 
 
 If our original `Cargo.toml` looked like this,
 
@@ -417,7 +415,7 @@ we just have to add this section
 miniz_oxide = { path = "../miniz_oxide/miniz_oxide" }
 ```
 
-Before we start making changes, lets make a copy of the original binary we used to benchmark. It will be useful for comparison later. 
+Before we start making changes, lets make a copy of the original binary we used to benchmark so we can use it as a point of comparison for our changes. 
 
 ```sh
 cp ./target/release/test-png ./original
@@ -447,7 +445,7 @@ Summary
     1.01 ± 0.03 times faster than './original'
 ```
 
-A 1% improvement. These results are barely above random noise, even though we removed bounds checks. We _do_ now have to do 2 additional assertions at the start of the function, but fundamentally the performance benefits from removing bounds checks aren't helping us here. If we want to speed up this function, we have to start thinking about the algorithm.
+A 1% improvement. These results are barely above random noise, even though we removed bounds checks. We're a bit of new work now for the 2 assertions at the start of the function, but that wouldn't be the cause for such a small speed-up. Fundamentally the performance benefits from removing bounds checks aren't helping us here and the optimizer isn't able to do much better even with them gone. If we want to speed up this function, we have to start thinking about the algorithm.
 
 Looking at the assembly, right now our implementation is entirely scalar. We load one array element at a time, mask it, and then copy it to the out position. It should be trivial for the compiler to vectorize this, so what's preventing it?
 
@@ -507,7 +505,9 @@ We run in release mode just because it's prohibitively slow to execute in debug 
 (  1)   255047 (100.0%,100.0%): 18446744073709551615
 ```
 
-First, we can see that this function is called a lot. 255,000 times during the course of execution. We can also see that the mask value is always the same. It looks like some large 64 bit integer. I don't have special 64 bit integers memorized, so lets open up a python repl to see what it looks like in binary.
+Looking at the output, the first number in parentheses is just the line number of the output. The second number is the count for the given value. The last number in the input is what we printed.
+
+Based on this, we can see that the mask value is always the same. It looks like some large 64 bit integer. I don't have special 64 bit integers memorized, so lets open up a python repl to see what it looks like in binary.
 
 ```python
 >>> bin(18446744073709551615)
@@ -584,7 +584,7 @@ gives us
 ... 200 more results
 ```
 
-Quite a bit of variance. But if we look at the percentages, 99.5% of cases have a difference of 1. The rest of the cases all have pretty low counts relative to the max. So now we know what case we want to investigate.
+Quite a bit of variance. But if we look at the percentages, 99.5% of cases have a difference of 1. The rest of the cases all have pretty low counts relative to the total. So now we know which case we want to investigate.
 
 Right now we're checking the absolute difference, so we're not actually checking whether `out_pos` is greater than or less than `source_pos`. This can affect the changes that we're making, so let's see which one is more common.
 
@@ -637,7 +637,7 @@ fn transfer(
 }
 ```
 
-Let's revisit our example from before. If we start with an array of `[1, 2, 3, 4, 5, 6, 7, 8]`, let's say `source_pos` is 0, and `out_pos` is 1 this time. We don't have to worry about masking because we know the number we're masking by is `usize::MAX`. Let's think through what the array looks like after 1 iteration
+Let's revisit our example from before. If we start with an array of `[1, 2, 3, 4, 5, 6, 7, 8]`, let's say `source_pos` is 0, and `out_pos` is 1 this time. We don't have to worry about masking because we know the number we're masking by is `usize::MAX`. Let's think through what the array looks like after 1 iteration.
 
 ```python
 out_slice = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -683,7 +683,7 @@ fn transfer(
 }
 ```
 
-We can't compute the `fill_byte` as an argument to `.fill(..)` because of rust's borrow checker, so we have to bring out as a separate variable.
+We can't compute the `fill_byte` as an argument to `.fill(..)` because of rust's borrow checker, so we have to bring out as a separate variable. We have to update the `source_pos` and `out_pos` in our fast path because the later match statement depends on their values.
 
 Now let's compile this and compare it to our original binary.
 
@@ -719,8 +719,11 @@ test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 # ... full test results omitted
 ```
 
-All of the tests pass, this is likely a sound optimization.
+All of the tests pass, this is likely a sound optimization. At this point we should be comfortable making a PR with our changes. 
 
+This patch was submitted as [#131](https://github.com/Frommi/miniz_oxide/pull/131) to the `miniz_oxide` repo. It contains a bit more than described here. `miniz_oxide` has its own
+
+[^1]: In practice this was verified by looking at the annotated disassembly in `perf report`
 <!-- https://github.com/ccurtsinger/stabilizer -->
 <!-- https://en.wikipedia.org/wiki/X86_calling_conventions#System_V_AMD64_ABI -->
 <!-- http://sandsoftwaresound.net/perf/perf-tutorial-hot-spots/ -->
