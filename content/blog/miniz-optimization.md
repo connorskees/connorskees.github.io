@@ -35,11 +35,11 @@ fn main() {
 }
 ```
 
-This isn't perfect, but it works for our purposes right now. A more robust solution would elide the command line altogether and only benchmark the PNG operations themselves, but at the start we just want a rough idea of how it performs. We make a few optimizations to improve it. Namely, we avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and we pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
+This isn't perfect, but it works for our purposes right now. A more robust solution would elide the command line altogether and only benchmark the PNG operations themselves, but at the start we just want a rough idea of how the library performs. We make a few optimizations to improve the benchmark. Namely, we avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and we pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
 
 We use [`std::hint::black_box`](https://doc.rust-lang.org/stable/std/hint/fn.black_box.html) to make sure the compiler doesn't optimize anything differently just because we aren't actually using the result of the decoding.
 
-So how does `image-rs/png` do on this benchmark?
+How does `image-rs/png` do on this benchmark?
 
 ```sh
 cargo b --release
@@ -54,7 +54,7 @@ Benchmark 1: ./target/release/test-image-png
   Range (min … max):   250.6 ms … 262.4 ms    11 runs
 ```
 
-So about 250ms to decode a 2mb image. Is that reasonable? We don't really know -- this is the first decoder we're looking at. Intuitively it feels a bit long. This is executing on a dedicated Linux server that's not running any other programs. 
+So about 250ms to decode a 2mb image. Is that reasonable? We don't really know -- this is the first decoder we're looking at. Intuitively it feels a bit slow. This is executing on a dedicated Linux server that's not running any other programs. 
 
 Out of curiosity, let's profile the binary using `perf` to see where it's spending its time.
 
@@ -126,7 +126,7 @@ fn transfer(
 
 Given a buffer, `out_slice`, this function will read bytes from within `out_slice` starting at `source_pos` and copying them to `out_slice` starting at `out_pos`. The specific way it does the copying is a bit more complex, but that's the gist of it.
 
-Our PNG decoder spends 1/3rd of its time copying bytes. That raises a few red flags. Modern `memcpy` is heavily optimized and shouldn't be a bottleneck in this case. This function probably isn't being optimized to a straight `memcpy`, but that's the upper bound we should be targeting, and I think we should be able to get pretty close. Let's look at the disassembly to see what's going wrong. When we look at the disassembly, let's ignore the bottom `match` statement. That's only executed once per function call and should have a much smaller impact on perf compared to the loop[^1].
+Our PNG decoder spends 1/3rd of its time copying bytes. That raises a few red flags. Modern `memcpy` is pretty fast and shouldn't be a bottleneck for our decoder. This function probably isn't being optimized to a straight `memcpy`, but that's the upper bound we should be targeting, and I think we should be able to get pretty close. Let's look at the disassembly to see what's going wrong. When we look at the disassembly, let's ignore the bottom `match` statement. That's only executed once per function call and should have a much smaller impact on perf compared to the loop[^1].
 
 ```asm
 miniz_oxide::core::inflate::transfer:
