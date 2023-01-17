@@ -41,14 +41,14 @@ We make a few optimizations to improve the benchmark. Namely, we avoid file IO b
 
 We use [`std::hint::black_box`](https://doc.rust-lang.org/stable/std/hint/fn.black_box.html) to make sure the compiler doesn't optimize anything differently just because we aren't actually using the result of the decoding.
 
-How does `image-rs/png` do on this benchmark?
+To run our benchmark we're going to use [`hyperfine`](https://github.com/sharkdp/hyperfine), which is a great tool for ad hoc benchmarking of command line utilities.
 
 ```sh
 cargo b --release
 hyperfine ./target/release/test-png
 ```
 
-For benchmarking we use [`hyperfine`](https://github.com/sharkdp/hyperfine), which is a great tool for ad hoc benchmarking of command line utilities. If we execute the above commands, `hyperfine` prints
+gives us
 
 ```sh
 Benchmark 1: ./target/release/test-image-png
