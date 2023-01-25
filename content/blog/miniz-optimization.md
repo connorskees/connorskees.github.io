@@ -4,7 +4,7 @@ date = "2023-01-12"
 +++
 <!-- title = "Optimizing Low Hanging Fruit in `miniz_oxide`" -->
 
-I'm working on a large blog post investigating the performance characterstics of various PNG decoders across several programming languages. A large part of this work is profiling and benchmarking them.
+I'm working on a large blog post investigating the performance characteristics of various PNG decoders across several programming languages. A large part of this work is profiling and benchmarking them.
 
 The first decoder I'm looking at is [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the rust ecosystem.
 
@@ -473,7 +473,7 @@ out_slice[5] = out_slice[3]
 
 After the first iteration, the array is now `[1, 2, 1, 2, 1, 2, 7, 8]`.
 
-On the third line of our loop, we depend on the results of the first line of our loop. if we tried to load all the values for this iteration at once, we wouldn't get the correct result. We'll have to be really creative if we end up having to work around this depedency in the general case[^2].
+On the third line of our loop, we depend on the results of the first line of our loop. if we tried to load all the values for this iteration at once, we wouldn't get the correct result. We'll have to be really creative if we end up having to work around this dependency in the general case[^2].
 
 Let's look at the first problem -- masking can cause non-consecutive reads. Is there any way around this? One thing we could look at is the value we're masking by. If it's always the same value, we might be able to make some interesting optimizations. To inspect its value, we can use an ad hoc profiling tool called [`counts`](https://blog.mozilla.org/nnethercote/2018/07/24/ad-hoc-profiling/) that I really love. To use it, we just need to insert some prints into the code and then pipe the results to `counts`.
 
