@@ -5,33 +5,35 @@ date = "2023-01-25"
 <!-- title = "Researching the Use of Arbitrarily Wide SIMD Lanes to decode the PNG sub filter" -->
 <!-- title = "Decoding PNG Filters Using AVX2" -->
 
-PNG compression involves two schemes -- filters and DEFLATE. Filters are a pre-processing step that operate row-by-row and are used to decrease entropy in the data. They work off the assumption that pixels and their neighbors are usually similar, but not necessarily the exact same. DEFLATE is a common lossless compression format combining LZ77 and Huffman coding.
+PNG compression involves two schemes — filtering and DEFLATE. Filtering is a pre-processing step that operates row-by-row and is used to decrease entropy in the data. It works off the assumption that pixels and their neighbors are usually similar, but not necessarily the exact same. DEFLATE is a common lossless compression format combining LZ77 and Huffman coding.
 
-The part that we're interested in right now are the filters. You can find a pretty good explanation of them in the [official PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
+The part that we're interested in right now is filtering. You can find a pretty good explanation of the algorithms in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
 
-Before we talk about what each filter does, I want introduce the concept of a pixel and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two fields we care about -- bit depth and color type.
+Before we talk about how filtering works, I want to introduce the concept of a pixel and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two fields we care about — bit depth and color type.
 
-Color type defines the channels that make up a pixel. In the RGBA color type, pixels consist of 4 channels -- red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that can be thought of as string interning but for colors, with each color getting an 8 bit number assigned to it.
+Color type defines the channels that make up a pixel. In the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign an 8-bit integer to each color, though this only works if the image has at most 256 different colors.
 
-Bit depth defines the number of bits per channel. Certain color types only permit certain bit depths. If you're curious, the list of permitted combinations can be found in [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html), but this isn't too important to us right now.
+Bit depth defines the number of bits per channel. Certain color types only permit certain bit depths. If you're curious, the list of permitted combinations can be found in [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#~:Bit%20depth:~:text=The%20allowed%20combinations%20are), but this isn't too important to us right now.
 
 By combining the color type, which defines the number of channels, and the bit depth, which defines the number of bits per channel, we can find the number of bits per pixel. We refer to this value as "bpp." Although `bpp` typically refers to bits per pixel, for the rest of this post, the "b" in "bpp" will refer to "bytes."
 
 Let's look at a simple example:
 
-If we have an RGB color type with a bit depth of 8, our bits per pixel = 3 * 8 = 24, and our bytes per pixel = (bits per pixel) / 8 = 3.
+If we have an RGB color type with a bit depth of 8, our bits per pixel is `3 * 8` or `24`, and our bytes per pixel is `(bits per pixel) / 8` = `3`.
 
 When applying filters, the minimum bytes per pixel used is 1, even if the number of bits per pixel is less than a full byte.
 
 Filters are applied for every byte, regardless of bit depth. This means that if the number of bits per channel is greater than a full byte, we operate on the bytes of that channel separately.
 
-Now we can look at what the filters actually do:
+Now we can look at what they actually do:
 
-There are a total of 5 filters -- none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. 
+#### PNG Filters
+
+There are 5 filters — none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. 
 
 The `none` filter, as the name suggests, does not alter the bytes and just copies them as-is. 
 
-The `up` filter takes the pixel at position `n` and subtracts it by the pixel at position `n` in the row above it. For example, if we have two rows that looks like this:
+The `up` filter takes the pixel at position `n` and subtracts it by the pixel at position `n` in the row above it. For example, if we have two rows that look like this:
 
 ```python
 [1, 2, 3, 4, 5]
@@ -45,7 +47,7 @@ After applying the `up` filter, we get this compressed result:
 [0, 0, 0, 0, 0]
 ```
 
-We consider row before the first row contain only zeros, so the first row is unchanged.
+We consider the row before the first row to contain only zeros, so the first row is unchanged.
 
 The `sub` filter takes the pixel at position `n` and subtracts it by the pixel in the same row at position `n - 1`. For example, if we have a row that looks like this:
 
@@ -64,7 +66,7 @@ The `sub` filter operates on individual channels. That is, the red channel of pi
 
 If we look at the `sub` filter as operating on individual bytes, we say that the algorithm is `filtered[n] = unfiltered[n] - unfiltered[n - bpp]`. Where `bpp` is calculated based on the color type and bit depth.
 
-If this sounds a bit confusing, it should make a lot more sense when we start looking at the implementation in code. For now, let's keep looking at the other filters.
+If this sounds a bit confusing, it should make a lot more sense when we start looking at an implementation in code. For now, let's keep looking at the other filters.
 
 The `average` filter subtracts the pixel at position `n` by the average of the pixel above and to the left of it.
 
@@ -73,10 +75,9 @@ The `average` filter subtracts the pixel at position `n` by the average of the p
 [1, 2, 3, 4, 5]
 ```
 
-turns into 
+our second row compresses to 
 
 ```python
-[1, 2, 3, 4, 5]
 # [
 #   1 - (1 + 0) // 2,
 #   2 - (2 + 1) // 2,
@@ -87,8 +88,7 @@ turns into
 [1, 1, 1, 1, 1]
 ```
 
-Here the `//` is python's [floor division operator](https://en.wikibooks.org/wiki/Python_Programming/Operators#Floor_Division_and_True_Division). Because the filters operate on bytes, the resulting values are integers and will wrap if they go outside the range `[0, 255]`. An interesting part of the `average` filter is that the average is computed using _9_ bits of precision, rather than 8. This means that if you're storing bytes as fixed width 8-bit integers, you will need to handle the case in which addition causes rounding.
-<!-- todo: ugly last sentence -->
+Here the `//` is python's [floor division operator](https://en.wikibooks.org/wiki/Python_Programming/Operators#Floor_Division_and_True_Division). Because the filters operate on bytes, the resulting values are integers and will wrap if they go outside the range `[0, 255]`. An interesting part of the `average` filter is that the average is computed using _9_ bits of precision, rather than 8. This means that if you're storing bytes as fixed-width 8-bit integers, you will need to handle the case in which addition causes rounding.
 
 The last and most complex filter is the `paeth` filter. The name comes from the inventor, Alan Paeth. This filter uses a special predictor function that looks at the pixel to the left, the pixel immediately above, and the pixel up and to the left. 
 
@@ -215,7 +215,7 @@ example::sub:
 ; ... panic handling code omitted for brevity
 ```
 
-It does surprisingly well -- though not perfect. It looks like our first loop is performed in serial and has bounds checks on every iteration. This is because we don't actually know that our input or output slice has at least `BYTES_PER_PIXEL` elements. If this were in the context of a real PNG decoder and this function got inlined, LLVM may be able to do a better job eliding bounds checks. In a real PNG decoder, a row length of 0 would imply the image data is empty and defiltering can be skipped altogether. The row length is guaranteed to be a multiple of `BYTES_PER_PIXEL`, and if it isn't, due to the image being malformed or truncated, we'd expect the PNG decoder to have errored out by this point. Going forward, our implementations of the `sub` filter will rely on these two assumptions.
+It does surprisingly well — though not perfect. It looks like our first loop is performed in serial and has bounds checks on every iteration. This is because we don't actually know that our input or output slice has at least `BYTES_PER_PIXEL` elements. If this were in the context of a real PNG decoder and this function got inlined, LLVM may be able to do a better job eliding bounds checks. In a real PNG decoder, a row length of 0 would imply the image data is empty and defiltering can be skipped altogether. The row length is guaranteed to be a multiple of `BYTES_PER_PIXEL`, and if it isn't, due to the image being malformed or truncated, we'd expect the PNG decoder to have errored out by this point. Going forward, our implementations of the `sub` filter will rely on these two assumptions.
 
 The second loop is pretty interesting. It looks like LLVM is doing some magic to be able to vectorize it and perform the loads and additions `BYTES_PER_PIXEL` elements at a time. As we'll see later, this actually comes surprisingly close to our handwritten SIMD implementation.
 
@@ -435,9 +435,9 @@ defiltered[2] = defiltered[1] + filtered[2]
 
 The last calculation depends on the results of the second-to-last calculation. How can we work around this?
 
-`libpng`'s optimization doesn't really try to -- it still does a lot of things in serial. But when the `bpp` is greater than 1, it can operate on `bpp` bytes per iteration rather than going byte-by-byte. This ends up being pretty fast -- for a `bpp` of 4, you're operating on 4x the number of bytes.
+`libpng`'s optimization doesn't really try to — it still does a lot of things in serial. But when the `bpp` is greater than 1, it can operate on `bpp` bytes per iteration rather than going byte-by-byte. This ends up being pretty fast — for a `bpp` of 4, you're operating on 4x the number of bytes.
 
-Let's look at how this implementation works in practice. We're going to port [`libpng`'s 4 `bpp` implementation](https://github.com/glennrp/libpng/blob/libpng16/intel/filter_sse2_intrinsics.c#L85) to rust:
+Let's look at how this implementation works in practice. We're going to port [libpng's 4 bpp implementation](https://github.com/glennrp/libpng/blob/libpng16/intel/filter_sse2_intrinsics.c#L85) to rust:
 
 ```rust
 unsafe fn load4(x: [u8; 4]) -> __m128i {
@@ -502,23 +502,23 @@ test tests::bench_sub_no_bound_checks ... bench:      86,719 ns/iter (+/- 2,057)
 test tests::bench_sub_sse2            ... bench:      86,573 ns/iter (+/- 1,004)
 ```
 
-Pretty much no improvement. We more or less wrote by hand what LLVM already optimized our naive implementation to. It could be that we missed something in porting the C code, but that seems unlikely. In general, it doesn't seem that we can get a massive win here.
+Pretty much no improvement. We more or less wrote by hand what LLVM already optimized our naive implementation to be. It could be that we missed something in porting the C code, but that seems unlikely. In general, it doesn't seem that we can get a massive win here.
 
 About a year ago, I had the idea to try solving the PNG filters using AVX and AVX2. AVX enables us to operate on 32 bytes at a time, compared to our current implementation that operates on at most 4 bytes at a time. If we're able to use AVX registers and instructions, we'd be able to operate on 8x the number of bytes as existing implementations of the filters.
 
-After playing around with the problem for a while, I realized that decoding the `sub` filter can be pretty trivially reduced down to a pretty well-studied problem called [prefix sum](https://en.wikipedia.org/wiki/Prefix_sum). Prefix sum happens to be extremely easy to compute in parallel, which makes our problem a lot simpler.
+After playing around with the problem for a while, I realized that decoding the `sub` filter can be pretty trivially reduced down to a pretty well-studied problem called [prefix sum](https://en.wikipedia.org/wiki/Prefix_sum)[^1]. Prefix sum happens to be extremely easy to compute in parallel, which makes our problem a lot simpler.
 
 The idea behind parallel prefix sum is that you can trivially subdivide the problem and then combine the results of the separate executions. Let's take a simple example:
 
 Given an array `[1, 2, 3, 4]`, the serial solution would be to just loop over the entire array. In a parallel version, we can split this array into `[1, 2]` and `[3, 4]` and compute the prefix sums separately. Then, we can take the last element of the first array and add it to each element in the second array. We'll call this the accumulate step. 
 
-So after executing the prefix sum step, we end up with the two arrays `[1, 3]` and `[3, 7]`. Then we apply the accumulate step and end up with two arrays `[1, 3]` and `[6, 10]`. Combining them get `[1, 3, 6, 10]` which is the correct prefix sum result we're looking for.
+So after executing the prefix sum step, we end up with the two arrays `[1, 3]` and `[3, 7]`. Then we apply the accumulate step and end up with two arrays `[1, 3]` and `[6, 10]`. Combining them, we get `[1, 3, 6, 10]` which is the correct prefix sum result we're looking for.
 
-This sounds like we're doing more work -- and we are. But these kinds of operations are really fast in SIMD, so the actual number of instructions per byte is significantly less than in the scalar solution. 
+This sounds like we're doing more work — and we are. But these kinds of operations are really fast in SIMD, so the actual number of instructions per byte is significantly less than in the scalar solution. 
 
 [Algorithmica has a pretty good explanation of vectorized prefix sum](https://en.algorithmica.org/hpc/algorithms/prefix/) that goes quite a bit deeper than we need to for this problem, but is a great read if you're interested in learning more.
 
-We'll actually end up with something that looks very similar to their first vectorized example. The only difference is that the algorithm presented by algorithmica operates on 32-bit integers in sequence, while we want to operate on 8-bit bytes offset by `bpp`. When `bpp` is 4, this looks strikingly similar to just adding 32 bit integers.
+We'll actually end up with something that looks very similar to their first vectorized example. The only difference is that the algorithm presented by algorithmica operates on 32-bit integers in sequence, while we want to operate on 8-bit bytes offset by `bpp`. When `bpp` is 4, this looks strikingly similar to just adding 32-bit integers.
 
 For the accumulate step, we're going to use `_mm256_extract_epi32`. I wasn't able to port their accumulate implementation very well, but I'd assume it compiles down to roughly the same thing.
 
@@ -705,18 +705,19 @@ test tests::bench_sub_sse_prefix_sum            ... bench:     112,770 ns/iter (
 test tests::bench_sub_sse_prefix_sum_no_extract ... bench:      69,864 ns/iter (+/- 1,696)
 ```
 <!-- todo: also add benchmarks for different input sizes -->
-It's a lot faster! We're approaching the speed of `memcpy`. With this new algorithm, we can go ~25% faster than a naive approach operating on only 4 bytes at a time. It seems hard to improve on this further -- at some point we'll be bound by memory. As a proof of concept for this algorithm, I think this works quite well. It may be possible to improve on this by making better use of AVX intrinsics, but for right now it's likely not worth the effort to optimize this further.
+It's a lot faster! We're approaching the speed of `memcpy`. With this new algorithm, we can go ~25% faster than a naive approach operating on only 4 bytes at a time. It seems hard to improve on this further — at some point we'll be bound by memory. As a proof of concept for this algorithm, I think this works quite well. It may be possible to improve on this by making better use of AVX intrinsics, but for right now it's likely not worth the effort to optimize this further.
 
 #### Impact of this research
 
 The goal up to this point has largely been to demonstrate that this algorithm can improve the performance of PNG decoding. The work demonstrated here is a proof-of-concept and doesn't contain a production-ready implementation.
 
-The `sub` filter is just a small part of PNG decoding. Although we managed to speed it up by 25% for inputs of this size, this doesn't correlate to a 25% improvement of PNG decoding. The exact improvement here is a bit hard to calculate as it depends heavily on the input -- the dimensions of the PNG, DEFLATE's compression level, the distribution of filters, etc. In general I wouldn't expect this to be too large of a win in total decode time, but it may become meaningful if you're trying to write the fastest theoretical PNG decoder (this is foreshadowing).
+The `sub` filter is just a small part of PNG decoding. Although we managed to speed it up by 25% for inputs of this size, this doesn't correlate to a 25% improvement of PNG decoding. The exact improvement here is a bit hard to calculate as it depends heavily on the input — the dimensions of the PNG, DEFLATE's compression level, the distribution of filters, etc. In general I wouldn't expect this to be too large of a win in total decode time, but it may become meaningful if you're trying to write the fastest theoretical PNG decoder (this is foreshadowing).
 
-I think it may be possible to apply similar ideas to the `avg` and `paeth` filters, but I haven't yet come up with a performant solution for them. One particularly painful issue with the `avg` filter is that the average is taken with 9 bits of precision, rather than 8, and then truncated -- so it's not sufficient to just do a bitshift in order to divide by two. Future research here may involve the `VPAVGB` instruction.
+I think it may be possible to apply similar ideas to the `avg` and `paeth` filters, but I haven't yet come up with a performant solution for them. One particularly painful issue with the `avg` filter is that the average is taken with 9 bits of precision, rather than 8, and then truncated — so it's not sufficient to just do a bitshift in order to divide by two. Future research here may involve the `VPAVGB` instruction.
 
 I haven't yet investigated the `paeth` filter, so I'm not sure how difficult such a solution for this filter would be. At first glance it appears quite a bit more challenging than the other filters, but there may be a clever solution hiding somewhere.
 
+[^1]: The intuition for this 
 <!-- Even if someone wanted to write the fastest theoretical PNG decoder (foreshadowing), this algorithm is sufficiently fast to achieve this. -->
 
 <!-- _mm_shuffle_epi32  -->
