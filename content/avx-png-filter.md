@@ -5,13 +5,15 @@ date = "2023-01-25"
 <!-- title = "Researching the Use of Arbitrarily Wide SIMD Lanes to decode the PNG sub filter" -->
 <!-- title = "Decoding PNG Filters Using AVX2" -->
 
-PNG compression involves two schemes — filtering and DEFLATE. Filtering is a pre-processing step that operates row-by-row and is used to decrease entropy in the data. It works off the assumption that pixels and their neighbors are usually similar, but not necessarily the exact same. DEFLATE is a common lossless compression format combining LZ77 and Huffman coding.
+PNG compression involves two schemes — filtering and DEFLATE.
 
-The part that we're interested in right now is filtering. You can find a pretty good explanation of the algorithms in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
+Filtering is a pre-processing step that operates row-by-row and is used to decrease entropy in the data. It works off the assumption that pixels and their neighbors are usually similar, but not necessarily the exact same. DEFLATE is a common lossless compression format combining LZ77 and Huffman coding.
 
-Before we talk about how filtering works, I want to introduce the concept of a pixel and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two fields we care about — bit depth and color type.
+The part that we're interested in right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
 
-Color type defines the channels that make up a pixel. In the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign an 8-bit integer to each color, though this only works if the image has at most 256 different colors.
+Before we talk about the specifics of filtering, I want to introduce the concept of a pixel and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two fields we care about — color type and bit depth.
+
+Color type defines the channels or components that make up a pixel. In the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign an 8-bit integer to each color, though this only works if the image has at most 256 different colors.
 
 Bit depth defines the number of bits per channel. Certain color types only permit certain bit depths. If you're curious, the list of permitted combinations can be found in [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#~:Bit%20depth:~:text=The%20allowed%20combinations%20are), but this isn't too important to us right now.
 
@@ -412,7 +414,9 @@ test tests::bench_sub_no_bound_checks ... bench:      86,584 ns/iter (+/- 1,374)
 
 Our initial implementations don't actually seem to be _that_ bad. But there's probably a lot of room for improvement here.
 
-`libpng` has had optimized filter implementations using explicit SIMD for [close to a decade](https://github.com/glennrp/libpng/commit/9c946e22fcad10c2a44c0380c0909da6732097ce).
+#### Current State of the Art
+
+`libpng` has had optimized filter implementations using explicit SIMD for [close to a decade](https://github.com/glennrp/libpng/pull/88).
 
 The optimization that they make is based around `bpp`. 
 
@@ -502,11 +506,13 @@ test tests::bench_sub_no_bound_checks ... bench:      86,719 ns/iter (+/- 2,057)
 test tests::bench_sub_sse2            ... bench:      86,573 ns/iter (+/- 1,004)
 ```
 
-Pretty much no improvement. We more or less wrote by hand what LLVM already optimized our naive implementation to be. It could be that we missed something in porting the C code, but that seems unlikely. In general, it doesn't seem that we can get a massive win here.
+Pretty much no improvement. We saw previously that LLVM was able to autovectorize our loop to operate on 4 bytes at a time already, so this is likely the explanation for why our explicit SIMD implementation isn't too much faster. It could be that we missed something in porting the C code, but that seems unlikely here. In general, it doesn't seem that we can get a massive win if we're stuck operating on `bpp` bytes at a time.
+
+#### Trying a Different Algorithm
 
 About a year ago, I had the idea to try solving the PNG filters using AVX and AVX2. AVX enables us to operate on 32 bytes at a time, compared to our current implementation that operates on at most 4 bytes at a time. If we're able to use AVX registers and instructions, we'd be able to operate on 8x the number of bytes as existing implementations of the filters.
 
-After playing around with the problem for a while, I realized that decoding the `sub` filter can be pretty trivially reduced down to a pretty well-studied problem called [prefix sum](https://en.wikipedia.org/wiki/Prefix_sum)[^1]. Prefix sum happens to be extremely easy to compute in parallel, which makes our problem a lot simpler.
+After playing around with the problem for a while, I realized[^1] that decoding the `sub` filter can be pretty trivially reduced down to a pretty well-studied problem called [prefix sum](https://en.wikipedia.org/wiki/Prefix_sum). Prefix sum happens to be extremely easy to compute in parallel, which makes our problem a lot simpler.
 
 The idea behind parallel prefix sum is that you can trivially subdivide the problem and then combine the results of the separate executions. Let's take a simple example:
 
@@ -717,10 +723,8 @@ I think it may be possible to apply similar ideas to the `avg` and `paeth` filte
 
 I haven't yet investigated the `paeth` filter, so I'm not sure how difficult such a solution for this filter would be. At first glance it appears quite a bit more challenging than the other filters, but there may be a clever solution hiding somewhere.
 
-[^1]: The intuition for this 
-<!-- Even if someone wanted to write the fastest theoretical PNG decoder (foreshadowing), this algorithm is sufficiently fast to achieve this. -->
+[^1]: The intuition for this may be a bit challenging to come up with if you're not already familiar with prefix sum and its properties. I believe this particular idea came to me by just staring at an example execution for a bit.
 
-<!-- _mm_shuffle_epi32  -->
 
 <!-- https://github.com/etemesi254/zune-image/blob/fc5c78593906f18722969de60af1ca9b6b99b7f7/zune-png/src/filters.rs -->
 
