@@ -31,7 +31,7 @@ Now we can look at what they actually do:
 
 #### PNG Filters
 
-There are 5 filters — none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. For the purposes of this post, we're going to talk about the first 3. The `average` and `paeth` filters are interesting, but we don't need to worry about them.
+There are 5 filters — none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. We'll walk through a simple explanation of the first 3, but we won't talk about the `average` or `paeth` filters. They're pretty interesting, but the rest of this post will focus on the `sub` filter, so we don't need to worry about understanding how they work.
 
 The `none` filter, as the name suggests, does not alter the bytes and just copies them as-is. 
 
