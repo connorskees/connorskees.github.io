@@ -5,7 +5,7 @@
         <div class="socials">
             {% for social in config.extra.socials %}
             <a href="{{ social.url }}" class="social">
-                <object alt={{ social.name }}  width="24" height="24" data="/social_icons/{{ social.icon }}.svg" type="image/svg+xml"></object>
+                <object alt={{ social.name }}  width="24" height="80" data="/social_icons/{{ social.icon }}.svg" type="image/svg+xml"></object>
             </a>
             {% endfor %}
         </div>
