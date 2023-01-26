@@ -118,7 +118,7 @@ As promised, let's look at a simple code implementation of decoding the `sub` fi
 
 ```rust
 pub fn sub(raw_row: &[u8], decoded_row: &mut [u8]) {
-    for i in 0..BYTES_PER_PIXEL.min(decoded_row.len()) {
+    for i in 0..BYTES_PER_PIXEL {
         decoded_row[i] = raw_row[i];
     }
 
