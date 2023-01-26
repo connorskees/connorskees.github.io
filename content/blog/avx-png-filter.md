@@ -28,8 +28,6 @@ When applying filters, the minimum bytes per pixel used is 1, even if the number
 
 Filters are applied for every byte, regardless of bit depth. This means that if the number of bits per channel is greater than a full byte, we operate on the bytes of that channel separately.
 
-Now we can look at what they actually do:
-
 #### PNG Filters
 
 There are 5 filters — none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. We'll walk through a simple explanation of the first 3, but we won't talk about the `average` or `paeth` filters. They're pretty interesting, but the rest of this post will focus on the `sub` filter, so we don't need to worry about understanding how they work.
