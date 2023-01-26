@@ -1,6 +1,7 @@
 +++
 title = "Researching Novel Algorithms to Decode PNG Filters"
 date = "2023-01-25"
+aliases = ["/avx-png-filter"]
 +++
 <!-- title = "Researching the Use of Arbitrarily Wide SIMD Lanes to decode the PNG sub filter" -->
 <!-- title = "Decoding PNG Filters Using AVX2" -->
@@ -480,7 +481,7 @@ pub unsafe fn sub_sse2(raw: &[u8], current: &mut [u8]) {
 }
 ```
 
-So instead of loading, adding, and storing one byte at a time, we can operate on 4 bytes at a time. Let's benchmark this implementation to see how much better it is.
+So instead of loading, adding, and storing one byte at a time, we can operate on 4 bytes at a time. Let's benchmark this implementation to see how it performs.
 
 ```rust
 #[bench]
@@ -594,7 +595,7 @@ test tests::bench_sub_no_bound_checks ... bench:      86,567 ns/iter (+/- 1,432)
 test tests::bench_sub_sse2            ... bench:      86,422 ns/iter (+/- 3,934)
 ```
 
-We actually get something that's a bit faster. It isn't too much above noise, but it does appear to run consistently ~5% faster. That's not nothing, but it's definitely a much smaller win than we'd expect from operating on 8x the number of bytes at a time.
+We get something that's a bit faster. It isn't too much above noise, but it does appear to run consistently ~5% faster. That's not nothing, but it's definitely a much smaller win than we'd expect from operating on 8x the number of bytes at a time. It's likely that although we're now able to operate on a larger number of bytes at a time, our wins are being consumed by the extra processing we're now doing to perform prefix sum.
 
 This is roughly where I left things for about a year. I came back to this problem every once in a while after being inspired by blog posts, reading code, or learning about interesting applications of x86 SIMD intrinsics, but in general I wasn't able to improve on this problem too much.
 
@@ -605,7 +606,6 @@ Last week, as part of a larger blog post investigating the performance of PNG de
 The initial implementation looks like this:
 
 ```rust
-
 pub unsafe fn sub_sse_prefix_sum(raw_row: &[u8], decoded_row: &mut [u8]) {
     let mut last = 0;
     let mut x: __m128i;
