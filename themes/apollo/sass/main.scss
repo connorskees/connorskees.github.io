@@ -56,6 +56,6 @@ html {
   display: inline;
 }
 
-svg, img, path {
-  fill: red !important;
+svg {
+  @extend img;
 }
