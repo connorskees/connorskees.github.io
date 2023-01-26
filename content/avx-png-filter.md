@@ -11,7 +11,7 @@ Filtering is a pre-processing step that operates row-by-row and is used to decre
 
 The part that we're interested in right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
 
-Before we talk about the specifics of filtering, I want to introduce the concept of a pixel and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two fields we care about — color type and bit depth.
+We can start by introducing two primitives: the pixel, and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two fields we care about — color type and bit depth.
 
 Color type defines the channels or components that make up a pixel. In the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign an 8-bit integer to each color, though this only works if the image has at most 256 different colors.
 
@@ -31,7 +31,7 @@ Now we can look at what they actually do:
 
 #### PNG Filters
 
-There are 5 filters — none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. 
+There are 5 filters — none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. For the purposes of this post, we're going to talk about the first 3. The `average` and `paeth` filters are interesting, but we don't need to worry about them.
 
 The `none` filter, as the name suggests, does not alter the bytes and just copies them as-is. 
 
@@ -68,9 +68,11 @@ The `sub` filter operates on individual channels. That is, the red channel of pi
 
 If we look at the `sub` filter as operating on individual bytes, we say that the algorithm is `filtered[n] = unfiltered[n] - unfiltered[n - bpp]`. Where `bpp` is calculated based on the color type and bit depth.
 
-If this sounds a bit confusing, it should make a lot more sense when we start looking at an implementation in code. For now, let's keep looking at the other filters.
+If this sounds a bit confusing, it should make a lot more sense when we start looking at an implementation in code.
 
-The `average` filter subtracts the pixel at position `n` by the average of the pixel above and to the left of it.
+<!-- For now, let's keep looking at the other filters. -->
+
+<!-- The `average` filter subtracts the pixel at position `n` by the average of the pixel above and to the left of it.
 
 ```python
 [1, 2, 3, 4, 5]
@@ -103,11 +105,11 @@ If our image looks like this,
 
 If we want to find the filtered value of `X`, we call the predictor function with `a`, `b`, and `e` as inputs. Then we take the result of this predictor function and subtract `X` by it.
 
-Based on my non-scientific look at a number of images on Wikimedia Commons, the `paeth` filter appears to be the most common filter in well-compressed files, though this is currently just my speculation. At some point I may write a post investigating this claim.
+Based on my non-scientific look at a number of images on Wikimedia Commons, the `paeth` filter appears to be the most common filter in well-compressed files, though this is currently just my speculation. At some point I may write a post investigating this claim. -->
 
 To decode any of these filters, you just have to add to the filtered value, rather than subtract from the raw value.
 
-#### Revisiting the `sub` Filter
+#### Implementing the `sub` Filter
 
 This is all just required background reading to understand what we're really interested in: optimizing the `sub` filter for 8-bit RGBA pixels. Although we introduced the filters by discussing how they're encoded, for the rest of this post we'll only be talking about how they're decoded.
 
@@ -729,4 +731,3 @@ I haven't yet investigated the `paeth` filter, so I'm not sure how difficult suc
 <!-- https://github.com/etemesi254/zune-image/blob/fc5c78593906f18722969de60af1ca9b6b99b7f7/zune-png/src/filters.rs -->
 
 <!-- https://www.agner.org/optimize/instruction_tables.pdf -->
-<!-- https://en.algorithmica.org/hpc/algorithms/prefix/ -->
