@@ -47,6 +47,11 @@ header .main {
   justify-content: flex-start;
   align-items: flex-end;
   gap: 6px;
+
+  object {
+    border: none;
+    pointer-events: none;
+  }
 }
 
 .social {
