@@ -21,4 +21,6 @@ mode = "dark"
 menu = [
     { name = "Home", url = "/", weight = 2 },
 ]
-socials = []
+socials = [
+    { name = "github", url = "https://github.com/connorskees/", icon = "github" },
+]
