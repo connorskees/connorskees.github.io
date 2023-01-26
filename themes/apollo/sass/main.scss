@@ -55,3 +55,7 @@ html {
 .footnote-definition p {
   display: inline;
 }
+
+svg, img, path {
+  fill: red !important;
+}
