@@ -10,13 +10,13 @@ PNG compression involves two schemes — filtering and DEFLATE.
 
 Filtering is a pre-processing step that operates row-by-row and is used to decrease entropy in the data. It works off the assumption that pixels and their neighbors are usually similar, but not necessarily the exact same. DEFLATE is a common lossless compression format combining LZ77 and Huffman coding.
 
-The part that we're interested in right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
+The step that we're interested in right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
 
-We can start by introducing two primitives: the pixel, and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two fields we care about — color type and bit depth.
+We can start by introducing two primitives: the pixel, and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two properties we care about — color type and bit depth.
 
 Color type defines the channels or components that make up a pixel. In the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign an 8-bit integer to each color, though this only works if the image has at most 256 different colors.
 
-Bit depth defines the number of bits per channel. Certain color types only permit certain bit depths. If you're curious, the list of permitted combinations can be found in [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#~:Bit%20depth:~:text=The%20allowed%20combinations%20are), but this isn't too important to us right now.
+Bit depth defines the number of bits per channel. Certain color types only permit certain bit depths. If you're curious, the list of permitted combinations can be found in [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#~:Bit%20depth:~:text=The%20allowed%20combinations%20are).
 
 By combining the color type, which defines the number of channels, and the bit depth, which defines the number of bits per channel, we can find the number of bits per pixel. We refer to this value as "bpp." Although `bpp` typically refers to bits per pixel, for the rest of this post, the "b" in "bpp" will refer to "bytes."
 
