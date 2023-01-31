@@ -2,6 +2,12 @@
 title = "Understanding `@extend`"
 +++
 
+`@extend` is a special rule in Sass that makes it easier to write base classes. Where in regular CSS you might have an element with the classes `"button button--error"`, using `@extend` you can reduce duplication by creating a base class `%button` and having `.button--error` extend it. This results in simpler code and smaller bundle sizes.
+
+The implementation of `@extend` is surprisingly complex. It's by far one of the hardest parts of Sass compilation. A naive implementation wouldn't be _too_ hard, but the production implementation of `@extend` has been around [since 2010](https://github.com/sass/ruby-sass/commit/f918cf3c397b1b463752af3f8780028d5dbaea80) and over time has adopted a number of features, constraints, and optimizations. Sass tries its hardest to produce the smallest number of selectors possible, which is a non-trivial problem.
+
+This post goes through a high level overview of the algorithms behind `@extend`. An understanding of Sass is not necessary, but some familiarity with HTML and CSS is expected. 
+
 <!-- date = "1970-01-01" -->
 
 #### Anatomy of a Selector
@@ -11,8 +17,8 @@ The first primitive we want to work with is the selector. Selectors are composed
 Simple selectors are the base atoms of a selector. They can be either
  - id `#foo`
  - class `.foo`
- - attribute `[foo]`, with one of 6 operators
- - type `foo`
+ - attribute `[foo]`, with one of 6 operators (`[foo$=bar]`, etc.)
+ - type `foo`, with an optional namespace. these are also sometimes called element selectors
  - pseudo (class and element) `:hover`/`::before`
  - universal `*`, with an optional namespace
  - the parent selector `&`
@@ -123,7 +129,7 @@ a, b {
 <!-- todo: below paragraph is bad. "smart" needs a better word. is the trimming part true? -->
 Sass is smart and doesn't generate any redundant selectors here. Though, the way this is happening under the hood is that the redundant selector _is_ generated, it's just trimmed out during a separate pass. We'll discuss this later on.
 
-Extension in Sass knows a lot about selectors, and will never generate invalid ones. For example `#foo#bar`
+<!-- Extension in Sass knows a lot about selectors, and will never generate invalid ones. For example `#foo#bar` -->
 
 #### Superselectors
 
@@ -134,22 +140,22 @@ Selector `A` is a superselector of selector `B` if it matches at least all eleme
 Let's walk through a couple examples. We'll define a function, `is-superselector` that takes 2 selectors and returns whether the first selector is a superselector of the second.
 
 ```scss
-// true
 is-superselector("a", "a")
+// true
 ```
 
-All selectors are superselectors of themselves. This should be pretty intuitive -- `a` matches all elements that are matches by `a`.
+All selectors are superselectors of themselves. This should be pretty intuitive -- `a` matches all elements that are matched by `a`.
 
 ```scss
-// false
 is-superselector("a.foo", "a")
+// false
 ```
 
 `a.foo` isn't a superselector of `a`, because it only matches `a` elements that have the class `foo`. But if we switch the arguments around,
 
 ```scss
-// true
 is-superselector("a", "a.foo")
+// true
 ```
 
 `a` _is_ a superselector of `a.foo` because it matches all the elements that `a.foo` would.
@@ -157,21 +163,21 @@ is-superselector("a", "a.foo")
 At this point you probably get the idea. We'll talk about a few interesting cases before moving on:
 
 ```scss
-// false
 is-superselector("a", "b")
+// false
 ```
 
 Two selectors that have no overlap can never be superselectors or subselectors of the other.
 
 ```scss
-// true
 is-superselector("a b", "a > b")
-// false
+// true
 is-superselector("a b", "a + b")
 // false
 is-superselector("a b", "a ~ b")
 // false
 is-superselector("a > b", "a b")
+// false
 ```
 
 With complex selectors, the semantics of the combinators come into play. The interesting case here is that the descendant combinator (` `) is considered a superselector of the next child combinator (`>`) while the inverse isn't true. The other combinators don't have any interesting interactions.
@@ -205,7 +211,7 @@ a {
 
 When we apply this stylesheet to the HTML `<a id="foo" class="bar" ... />`, what should the color be?
 
-We can look at the [CSS specificity docs](https://developer.mozilla.org/en-US/docs/Web/CSS/Specificity) on MDN to see. In this case, the id selector `#foo` is the most specific, so the color of the element will be `orange`.
+The style the browser chooses depends on the selector's [specificity](https://developer.mozilla.org/en-US/docs/Web/CSS/Specificity). In this case, the id selector `#foo` is the most specific, so the color of the element will be `orange`.
 
 The exact algorithm is this (quoting [the spec](https://www.w3.org/TR/selectors-3/#specificity)):
 
@@ -249,7 +255,7 @@ First, it differentiates between user provided selectors and selectors that Sass
 Sass will never alter the specificity of user provided selectors. For example, it we take a stylesheet like this:
 
 <!-- arg, target, extender -->
-<!-- a.foo, .foo, .a -->
+<!-- a.foo, .foo, a -->
 
 ```scss
 a.foo {
@@ -267,8 +273,96 @@ However, the specificity of the selector plays into the semantics. If we were to
 
 The solution here is to emit `a, a.foo` which maintains the semantics and specificity of both the original selector as written and the extension. 
 
+For selectors that Sass generates, things are a bit different. Sass only guarantees that generated selectors will have at least the specificity of the _extender_. That is, if we have an input like
+
+```scss
+a {
+    color: red;
+}
+
+a.foo {
+    @extend a;
+}
+```
+
+where our extender is `a.foo`, Sass guarantees that it will output a selector at least as specific as `a.foo`. Our result is
+
+```css
+a, a.foo {
+  color: true;
+}
+```
+
+which is quite similar to our previous example. Where things differ is when our extendee is more specific than our extender.
+
+```scss
+a, a.foo {
+    color: red;
+}
+
+b {
+    @extend a;
+}
+```
+
+Here, our extender `b` has a specificity of `1`. When we execute this code for the most recent version of Sass, we get
+
+```css
+a, b, a.foo {
+  color: true;
+}
+```
+
+There's a pretty noticeable ommission of `b.foo` here. Although this affects the semantics of our styles, Sass is free to omit this selector as an optimization as it doesn't violate the guarantee that the generated selector will have a specificity of at least that of the extender.
+
 #### Selector unification
+
+The next primitive we need to introduce is the concept of selector unification.
+
+When we "unify" two selectors, we create a new selector that matches only the elements that are matched by both selectors. This is like taking the "and" of two selectors.
+
+Unification is fallible and will return `null` if it's not possible to represent the "and" of both selectors. For example, `selector-unify("#a", "#b)` will fail because `#a#b` would never match any elements.
+
+As usual, we'll walk through a couple examples to get an idea of how this primitive works.
+
+```scss
+selector-unify(".a", ".b");
+```
+
+This is a pretty simple example. To match both class selectors, we just concatenate them into `.a.b`. Most unifications of simple selectors end up just concatenating the two, unless they're a special case like two ids, two psuedo elements, two type selectors, or `*`.
+
+In the case of `*`, for most combinations the result is just the second selector. You can think of it sort of like `true && X`. Our result is always just `X`. Things get a bit more complex when namespaces are involved, but we won't dive into that here.
+
+Unification of complex selectors is a bit more.... complex :p
+
+We start by looking at the last compound selector of both complex selectors and try unifying them. We refer to this final value as the "base." If unification of the compound bases fails, the entire unification will fail as well.
+
+Let's walk through a 2 examples of this:
+
+```scss
+selector-unify("a .foo", "a .bar");
+```
+
+Here, unification of the two base selectors succeeds and gives us `.foo.bar`, making our final unified selector `a .foo.bar`.
+
+```scss
+selector-unify("a #foo", "a #bar");
+```
+
+Here, `#foo` and `#bar` can't be unified, and so the entire result is `null`.
+
+From here, things get more complex. 
+
+
+ <!-- finding the base selector of all selector components.  -->
+
+It's actually complex enough that we're going to take a pretty long detour to explain it. I promise we'll come back to complex selector unification. By the time we do so, we'll be pretty close to fully understanding all the edges of `@extend`.
+
+#### Weaving
+
+We saw earlier that Sass generates all possible combinations of selectors. The algorithm for generating these combinations is referred to as "weave." 
 
 <!-- https://gist.github.com/nex3/7609394 -->
 <!-- https://github.com/sass/sass/blob/main/spec/at-rules/extend.md -->
 <!-- https://github.com/sass/sass/blob/main/accepted/extend-specificity.md -->
+<!-- https://specificity.keegan.st/ -->

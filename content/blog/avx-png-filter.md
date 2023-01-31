@@ -3,8 +3,6 @@ title = "Researching Novel Algorithms to Decode PNG Filters"
 date = "2023-01-25"
 aliases = ["/avx-png-filter"]
 +++
-<!-- title = "Researching the Use of Arbitrarily Wide SIMD Lanes to decode the PNG sub filter" -->
-<!-- title = "Decoding PNG Filters Using AVX2" -->
 
 PNG compression involves two schemes — filtering and DEFLATE.
 
@@ -63,7 +61,7 @@ If we apply the `sub` filter, we get this result:
 [1, 1, 1, 1, 1]
 ```
 
-The `sub` filter operates on individual channels. That is, the red channel of pixel `n` is subtracted by the red channel of pixel `n - 1`, the blue channel subtracted by the prior pixel's blue channel, and so on. The calculation for finding the corresponding channel involves the pixel's `bpp`.
+The `sub` filter operates on individual channels. That is, the red channel of pixel `n` is subtracted by the red channel of pixel `n - 1`, the blue channel is subtracted by the prior pixel's blue channel, and so on. The calculation for finding the corresponding channel involves the pixel's `bpp`.
 
 If we look at the `sub` filter as operating on individual bytes, we say that the algorithm is `filtered[n] = unfiltered[n] - unfiltered[n - bpp]`. Where `bpp` is calculated based on the color type and bit depth.
 
