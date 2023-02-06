@@ -335,7 +335,21 @@ In the case of `*`, for most combinations the result is just the second selector
 
 Unification of complex selectors is a bit more.... complex :p
 
-We start by looking at the last compound selector of both complex selectors and try unifying them. We refer to this final value as the "base." If unification of the compound bases fails, the entire unification will fail as well.
+I think it's helpful if we revisit the semantics of unification. Our goal is to create a selector that combines 2 selectors, A and B, and creates a selector that matches the elements matched by _both_ A and B.
+
+If we look at an example like `.a .b`, semantically this is matching all `.b` elements with a `.a` parent. For the selector `.c .d`, the same is true -- we're selecting all `.d` elements with a `.c` parent.
+
+If we want to unify these two selectors, what should the semantics of the resulting selector look like?
+
+We'd want a selector that matches all child elements that are _both_ `.b` and `.d` and that have parents of `.a` and `.c`. Modelling the children is pretty easy -- we just unify the children selectors to get `.b.d`. The parents are a bit harder -- how do you model having both parents `.a` and `.c`. 
+
+The solution is to emit all possible orderings of `.a` and `.c`. Specifically we would emit `.a .c`, `.c .a`, and also `.a.c` to account for the case in which a parent has both classes.
+
+Putting this together, we get the final selector of `.a .c .b.d, .c .a .b.d, .a.c .b.d`. In practice, implementations of Sass omit the `.a.c` selector because it results in _much_ larger selectors for marginal gain.
+
+Let's zoom into this algorithm to see how we'd go about generating this selector.
+
+We start by looking at the last compound selector of both complex selectors and trying to unify them. We refer to this final value as the "base." If unification of the compound bases fails, the entire unification will fail as well.
 
 Let's walk through a 2 examples of this:
 
@@ -349,18 +363,58 @@ Here, unification of the two base selectors succeeds and gives us `.foo.bar`, ma
 selector-unify("a #foo", "a #bar");
 ```
 
-Here, `#foo` and `#bar` can't be unified, and so the entire result is `null`.
+In this example, `#foo` and `#bar` can't be unified, and so the entire result is `null`.
 
-From here, things get more complex. 
+Once we resolve and unify the bases, we need to unify the parent selectors. We refer the algorithm that does this as "weave."
+
+#### Weave
+
+The goal of weave is to generate all possible orderings of the parent selectors. Earlier we looked at a pretty simple example, but weaving can get pretty complex. In particular, we run into increased complexity when we have combinators other than descendant (` `), we have multiple parent selectors (e.g. `.a .b .c` and `.d .e .f`), and if the parents share a selector either with each other or the base.
+
+Weaving maintains the invariant that the relative ordering of compound selectors within a given complex selector will remain the same. That is, if we are merging `.a .b .c` and `.d .e .f`, `.a` will always come before `.b` and `.d` will always come before `.e`. This should make sense intuitively -- if we swapped the order of `.a` and `.b`, we would be modifying the semantics of the original selector.
+
+We'll start by looking at some examples of these more complex cases, and then we'll take a deeper look at the implementation.
+
+The first complex case is when there are multiple parent selectors. Take this example:
+
+```scss
+selector-unify(".a .b .c", ".d .c");
+```
+
+Unification gives us `.a .b .d .c, .d .a .b .c`. We put the parent of selector 2 on both sides of selector 1.
+
+Based on our explanation so far, you might imagine that Sass would attempt to interleave the `.d` selector between `.a .b`, producing the parent `.a .d .b`; however, Sass doesn't do this for the same reason it doesn't emit `.a.c` or `.b.c`.
+
+For completeness, if we look at an example where both selectors have multiple parent selectors,
+
+```scss
+selector-unify(".a .b .c", ".d .e .c");
+```
+
+we get `.a .b .d .e .c, .d .e .a .b .c`. Again, there's no interleaving of the selectors from the two parents. We simply change their ordering.
+
+<!-- We start by grouping our parent selectors based on combinators. We want to split sequences at the descendant (` `) selector. For example, `(A B > C D + E ~ > G)` would be grouped into `(A) (B > C) (D + E ~ > G)`.
+
+This will help us in later steps to avoid having combinators in weird positions.
+
+Then we find the longest common subsequence of groups between the two selectors. The equality function our LCS implemenation uses is pretty interesting. When we do traversal and go to determine if two groups are equal, we compute whether the two groups have a superselector/subselector relation. -->
 
 
  <!-- finding the base selector of all selector components.  -->
 
-It's actually complex enough that we're going to take a pretty long detour to explain it. I promise we'll come back to complex selector unification. By the time we do so, we'll be pretty close to fully understanding all the edges of `@extend`.
+<!-- It's actually complex enough that we're going to take a pretty long detour to explain it. I promise we'll come back to complex selector unification. By the time we do so, we'll be pretty close to fully understanding all the edges of `@extend`. -->
 
-#### Weaving
+<!-- #### The `:is` selector
 
-We saw earlier that Sass generates all possible combinations of selectors. The algorithm for generating these combinations is referred to as "weave." 
+I want to start by talking about the `:is` selector. Not in the context of how it's used in `@extend`, but rather how it works in regular CSS. This will give us a vocabulary to talk about some of the more complex parts of extension.
+
+`:is` allows users to specify multiple selectors. For example, `:is(a, b) c` will match `b c` and `a c`. Taking this further, `:is(a, b) :is(c, d)` expands to `a c, a d, b c, b d`.
+
+You might already see the similarities to `@extend`. The rest of this post will be devoted to discussing the manual implementation of expanding these `:is`-like selectors. -->
+
+<!-- #### Weaving
+
+We saw earlier that Sass generates all possible combinations of selectors. The algorithm for generating these combinations is referred to as "weave."  -->
 
 <!-- https://gist.github.com/nex3/7609394 -->
 <!-- https://github.com/sass/sass/blob/main/spec/at-rules/extend.md -->

@@ -122,3 +122,7 @@ gets compiled into
   background-color: red;
 }
 ``` -->
+
+
+string operations are hard
+ - \a - foo
