@@ -10,7 +10,7 @@ Filtering is a pre-processing step that operates row-by-row and is used to decre
 
 The step that we're interested in right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
 
-We can start by introducing two primitives: the pixel, and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats can affect how we encode and decode pixels. There are two properties we care about — color type and bit depth.
+We can start by introducing two primitives: the pixel, and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats affect how we encode and decode pixels. There are two properties we care about — color type and bit depth.
 
 Color type defines the channels or components that make up a pixel. In the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign an 8-bit integer to each color, though this only works if the image has at most 256 different colors.
 
@@ -30,7 +30,7 @@ Filters are applied for every byte, regardless of bit depth. This means that if 
 
 There are 5 filters — none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. We'll walk through a simple explanation of the first 3, but we won't talk about the `average` or `paeth` filters. They're pretty interesting, but the rest of this post will focus on the `sub` filter, so we don't need to worry about understanding how they work.
 
-The `none` filter, as the name suggests, does not alter the bytes and just copies them as-is. 
+The `none` filter, as the name suggests, does not alter the bytes and just copies them as-is.
 
 The `up` filter takes the pixel at position `n` and subtracts it by the pixel at position `n` in the row above it. For example, if we have two rows that look like this:
 
@@ -76,7 +76,7 @@ If this sounds a bit confusing, it should make a lot more sense when we start lo
 [1, 2, 3, 4, 5]
 ```
 
-our second row compresses to 
+our second row compresses to
 
 ```python
 # [
@@ -91,7 +91,7 @@ our second row compresses to
 
 Here the `//` is python's [floor division operator](https://en.wikibooks.org/wiki/Python_Programming/Operators#Floor_Division_and_True_Division). Because the filters operate on bytes, the resulting values are integers and will wrap if they go outside the range `[0, 255]`. An interesting part of the `average` filter is that the average is computed using _9_ bits of precision, rather than 8. This means that if you're storing bytes as fixed-width 8-bit integers, you will need to handle the case in which addition causes rounding.
 
-The last and most complex filter is the `paeth` filter. The name comes from the inventor, Alan Paeth. This filter uses a special predictor function that looks at the pixel to the left, the pixel immediately above, and the pixel up and to the left. 
+The last and most complex filter is the `paeth` filter. The name comes from the inventor, Alan Paeth. This filter uses a special predictor function that looks at the pixel to the left, the pixel immediately above, and the pixel up and to the left.
 
 If our image looks like this,
 
@@ -417,11 +417,12 @@ Our initial implementations don't actually seem to be _that_ bad. But there's pr
 
 `libpng` has had optimized filter implementations using explicit SIMD for [close to a decade](https://github.com/glennrp/libpng/pull/88).
 
-The optimization that they make is based around `bpp`. 
+The optimization that they make is based around `bpp`.
 
 It's difficult to decode the PNG filters in parallel. At first glance, it looks like there's a pretty strict data dependency on previous iterations. If we look at an example calculation, this becomes pretty clear. For simplicity in our example, we'll say `bpp` is 1. When we implement things in code, we'll usually default to a `bpp` of 4.
 
 We'll start with the filtered array `[1, 2, 3]` and walk through defiltering it.
+
 ```python
 filtered = [1, 2, 3]
 defiltered = [0, 0, 0]
@@ -515,11 +516,11 @@ After playing around with the problem for a while, I realized[^1] that decoding 
 
 The idea behind parallel prefix sum is that you can trivially subdivide the problem and then combine the results of the separate executions. Let's take a simple example:
 
-Given an array `[1, 2, 3, 4]`, the serial solution would be to just loop over the entire array. In a parallel version, we can split this array into `[1, 2]` and `[3, 4]` and compute the prefix sums separately. Then, we can take the last element of the first array and add it to each element in the second array. We'll call this the accumulate step. 
+Given an array `[1, 2, 3, 4]`, the serial solution would be to just loop over the entire array. In a parallel version, we can split this array into `[1, 2]` and `[3, 4]` and compute the prefix sums separately. Then, we can take the last element of the first array and add it to each element in the second array. We'll call this the accumulate step.
 
 So after executing the prefix sum step, we end up with the two arrays `[1, 3]` and `[3, 7]`. Then we apply the accumulate step and end up with two arrays `[1, 3]` and `[6, 10]`. Combining them, we get `[1, 3, 6, 10]` which is the correct prefix sum result we're looking for.
 
-This sounds like we're doing more work — and we are. But these kinds of operations are really fast in SIMD, so the actual number of instructions per byte is significantly less than in the scalar solution. 
+This sounds like we're doing more work — and we are. But these kinds of operations are really fast in SIMD, so the actual number of instructions per byte is significantly less than in the scalar solution.
 
 [Algorithmica has a pretty good explanation of vectorized prefix sum](https://en.algorithmica.org/hpc/algorithms/prefix/) that goes quite a bit deeper than we need to for this problem, but is a great read if you're interested in learning more.
 
@@ -549,7 +550,7 @@ pub unsafe fn sub_avx(raw_row: &[u8], decoded_row: &mut [u8]) {
         ]);
         i = offset;
     }
-    
+
     while len != i {
         // load 32 bytes from input array
         x = _mm256_loadu_si256(raw_row.get_unchecked(i) as *const _ as *const __m256i);
@@ -567,7 +568,7 @@ pub unsafe fn sub_avx(raw_row: &[u8], decoded_row: &mut [u8]) {
 
         // extract last 4 bytes to be used in next iteration
         last = _mm256_extract_epi32::<7>(x);
-        
+
         // write 32 bytes to out array
         _mm256_storeu_si256(decoded_row.get_unchecked_mut(i) as *mut _ as *mut __m256i, x);
 
@@ -597,7 +598,7 @@ This is roughly where I left things for about a year. I came back to this proble
 
 The particularly slow part is `_mm256_extract_epi32`, especially the second call with a value of `7`. For values above 3, this intrinsic will compile down to multiple expensive instructions. If we remove this intrinsic, we approach the speed of `memcpy`. However, we can't really remove this intrinsic, since it's necessary for the accumulate step.
 
-Last week, as part of a larger blog post investigating the performance of PNG decoders, I revisited this problem. For the sake of completion, I was interested to see how a similar algorithm would perform if we used SSE registers instead. 
+Last week, as part of a larger blog post investigating the performance of PNG decoders, I revisited this problem. For the sake of completion, I was interested to see how a similar algorithm would perform if we used SSE registers instead.
 
 The initial implementation looks like this:
 
@@ -672,7 +673,7 @@ pub unsafe fn sub_sse_prefix_sum_no_extract(raw_row: &[u8], decoded_row: &mut [u
         last = _mm_castps_si128(_mm_broadcast_ss(&*(decoded_row.get_unchecked(offset - 4) as *const _ as *const f32)));
         i = offset;
     }
-    
+
     while len != i {
         // load 16 bytes from array
         x = _mm_loadu_si128(raw_row.get_unchecked(i) as *const _ as *const __m128i);
@@ -708,7 +709,9 @@ test tests::bench_sub_sse2                      ... bench:      86,519 ns/iter (
 test tests::bench_sub_sse_prefix_sum            ... bench:     112,770 ns/iter (+/- 4,366)
 test tests::bench_sub_sse_prefix_sum_no_extract ... bench:      69,864 ns/iter (+/- 1,696)
 ```
+
 <!-- todo: also add benchmarks for different input sizes -->
+
 It's a lot faster! We're approaching the speed of `memcpy`. With this new algorithm, we can go ~25% faster than a naive approach operating on only 4 bytes at a time. It seems hard to improve on this further — at some point we'll be bound by memory. As a proof of concept for this algorithm, I think this works quite well. It may be possible to improve on this by making better use of AVX intrinsics, but for right now it's likely not worth the effort to optimize this further.
 
 #### Impact of this research
@@ -722,7 +725,6 @@ I think it may be possible to apply similar ideas to the `avg` and `paeth` filte
 I haven't yet investigated the `paeth` filter, so I'm not sure how difficult such a solution for this filter would be. At first glance it appears quite a bit more challenging than the other filters, but there may be a clever solution hiding somewhere.
 
 [^1]: The intuition for this may be a bit challenging to come up with if you're not already familiar with prefix sum and its properties. I believe this particular idea came to me by just staring at an example execution for a bit.
-
 
 <!-- https://github.com/etemesi254/zune-image/blob/fc5c78593906f18722969de60af1ca9b6b99b7f7/zune-png/src/filters.rs -->
 

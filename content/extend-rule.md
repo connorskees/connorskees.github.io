@@ -393,6 +393,17 @@ selector-unify(".a .b .c", ".d .e .c");
 
 we get `.a .b .d .e .c, .d .e .a .b .c`. Again, there's no interleaving of the selectors from the two parents. We simply change their ordering.
 
+When the two selectors share a common compound selector, we can often emit a much smaller result. 
+
+The case in which the first parents are the same should be pretty intuitive --
+
+```scss
+selector-unify(".a .b .c", ".a .d .c");
+```
+
+Here, 
+
+
 <!-- We start by grouping our parent selectors based on combinators. We want to split sequences at the descendant (` `) selector. For example, `(A B > C D + E ~ > G)` would be grouped into `(A) (B > C) (D + E ~ > G)`.
 
 This will help us in later steps to avoid having combinators in weird positions.
@@ -416,6 +427,7 @@ You might already see the similarities to `@extend`. The rest of this post will 
 
 We saw earlier that Sass generates all possible combinations of selectors. The algorithm for generating these combinations is referred to as "weave."  -->
 
+<!-- https://github.com/sass/sass/issues/1807 -->
 <!-- https://gist.github.com/nex3/7609394 -->
 <!-- https://github.com/sass/sass/blob/main/spec/at-rules/extend.md -->
 <!-- https://github.com/sass/sass/blob/main/accepted/extend-specificity.md -->
