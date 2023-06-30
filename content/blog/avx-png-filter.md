@@ -8,11 +8,11 @@ PNG compression involves two schemes — filtering and DEFLATE.
 
 Filtering is a pre-processing step that operates row-by-row and is used to decrease entropy in the data. It works off the assumption that pixels and their neighbors are usually similar, but not necessarily the exact same. DEFLATE is a common lossless compression format combining LZ77 and Huffman coding.
 
-The step that we're interested in right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but we'll walk through a quick summary of the parts that are relevant to us here.
+The step that we're interested in right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but I'll walk through a quick summary of the parts that are relevant to this post.
 
 We can start by introducing two primitives: the pixel, and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats affect how we encode and decode pixels. There are two properties we care about — color type and bit depth.
 
-Color type defines the channels or components that make up a pixel. In the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign an 8-bit integer to each color, though this only works if the image has at most 256 different colors.
+Color type defines the channels or components that make up a pixel. For example, in the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign a single integer to each color.
 
 Bit depth defines the number of bits per channel. Certain color types only permit certain bit depths. If you're curious, the list of permitted combinations can be found in [the spec](http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#~:Bit%20depth:~:text=The%20allowed%20combinations%20are).
 
@@ -213,7 +213,7 @@ example::sub:
         pop     rax
         ret
 
-; ... panic handling code omitted for brevity
+; ... panic handling code omitted
 ```
 
 It does surprisingly well — though not perfect. It looks like our first loop is performed in serial and has bounds checks on every iteration. This is because we don't actually know that our input or output slice has at least `BYTES_PER_PIXEL` elements. If this were in the context of a real PNG decoder and this function got inlined, LLVM may be able to do a better job eliding bounds checks. In a real PNG decoder, a row length of 0 would imply the image data is empty and defiltering can be skipped altogether. The row length is guaranteed to be a multiple of `BYTES_PER_PIXEL`, and if it isn't, due to the image being malformed or truncated, we'd expect the PNG decoder to have errored out by this point. Going forward, our implementations of the `sub` filter will rely on these two assumptions.
@@ -370,7 +370,7 @@ test tests::bench_sub_no_bound_checks ... bench:      86,289 ns/iter (+/- 2,324)
 
 Although removing the bounds checks made our codegen look a lot nicer, it doesn't seem to actually improve our performance above noise. That's unfortunate. Let's see if we can do better.
 
-First let's try to get an idea of how close to the optimal solution we are. We can try comparing our filters to `memcpy`. We want to see how much overhead our subtraction is adding to the copying of bytes from `raw_row` to `decoded_row`.
+The first goal is to try to get an idea of how close to the optimal solution we are. We can try comparing our filters to `memcpy`. We want to see how much overhead our subtraction is adding to the copying of bytes from `raw_row` to `decoded_row`.
 
 We can add a benchmark that looks like this,
 
@@ -441,7 +441,7 @@ The last calculation depends on the results of the second-to-last calculation. H
 
 `libpng`'s optimization doesn't really try to — it still does a lot of things in serial. But when the `bpp` is greater than 1, it can operate on `bpp` bytes per iteration rather than going byte-by-byte. This ends up being pretty fast — for a `bpp` of 4, you're operating on 4x the number of bytes.
 
-Let's look at how this implementation works in practice. We're going to port [libpng's 4 bpp implementation](https://github.com/glennrp/libpng/blob/libpng16/intel/filter_sse2_intrinsics.c#L85) to rust:
+Let's look at how this implementation works in practice. We're going to port [libpng's 4 bpp implementation](https://github.com/glennrp/libpng/blob/f135775ad4e5d4408d2e12ffcc71bb36e6b48551/intel/filter_sse2_intrinsics.c#L85) to rust:
 
 ```rust
 unsafe fn load4(x: [u8; 4]) -> __m128i {
@@ -492,7 +492,7 @@ fn bench_sub_sse2(b: &mut Bencher) {
 }
 ```
 
-When we benchmark this time, we want to make use of SIMD intrinsics. To force LLVM to compile them optimally we'll have to configure `target-cpu=native`. If we don't do this, our intrinsics will be compiled suboptimally and we actually tend to get slower code than the scalar version.
+When we benchmark this time, we want to make use of SIMD intrinsics. To force LLVM to compile them optimally we'll have to configure `target-cpu=native`. If we don't do this, our intrinsics will be compiled suboptimally and we actually tend to get slower code than the scalar version, at least on my Linux machine.
 
 ```sh
 RUSTFLAGS='-Ctarget-cpu=native' cargo bench
@@ -524,7 +524,7 @@ This sounds like we're doing more work — and we are. But these kinds of operat
 
 [Algorithmica has a pretty good explanation of vectorized prefix sum](https://en.algorithmica.org/hpc/algorithms/prefix/) that goes quite a bit deeper than we need to for this problem, but is a great read if you're interested in learning more.
 
-We'll actually end up with something that looks very similar to their first vectorized example. The only difference is that the algorithm presented by algorithmica operates on 32-bit integers in sequence, while we want to operate on 8-bit bytes offset by `bpp`. When `bpp` is 4, this looks strikingly similar to just adding 32-bit integers.
+We'll actually end up with something that looks very similar to algorithmica's first vectorized example. The only difference is that the algorithm presented by algorithmica operates on 32-bit integers in sequence, while we want to operate on 8-bit bytes offset by `bpp`. When `bpp` is 4, this looks strikingly similar to just adding 32-bit integers.
 
 For the accumulate step, we're going to use `_mm256_extract_epi32`. I wasn't able to port their accumulate implementation very well, but I'd assume it compiles down to roughly the same thing.
 
@@ -592,7 +592,7 @@ test tests::bench_sub_no_bound_checks ... bench:      86,567 ns/iter (+/- 1,432)
 test tests::bench_sub_sse2            ... bench:      86,422 ns/iter (+/- 3,934)
 ```
 
-We get something that's a bit faster. It isn't too much above noise, but it does appear to run consistently ~5% faster. That's not nothing, but it's definitely a much smaller win than we'd expect from operating on 8x the number of bytes at a time. It's likely that although we're now able to operate on a larger number of bytes at a time, our wins are being consumed by the extra processing we're now doing to perform prefix sum.
+We get something that's a bit faster. It isn't too much above noise, but in my testing it does appear to run consistently ~5% faster. That's not nothing, but it's definitely a much smaller win than we'd expect from operating on 8x the number of bytes at a time. It's likely that although we're now able to operate on a larger number of bytes at a time, our wins are being consumed by the extra processing we're now doing to perform prefix sum.
 
 This is roughly where I left things for about a year. I came back to this problem every once in a while after being inspired by blog posts, reading code, or learning about interesting applications of x86 SIMD intrinsics, but in general I wasn't able to improve on this problem too much.
 
