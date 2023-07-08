@@ -12,9 +12,9 @@ This post goes through a high level overview of the algorithms behind `@extend`.
 
 #### Anatomy of a Selector
 
-The first primitive we want to work with is the selector. Selectors are composed of a series of complex selectors, which are themselves composed of compound selectors, and which finally are composed of simple selectors.
+The first primitive necessary to understand `@extend` is the CSS selector. Selector lists are composed of a series of complex selectors, which are themselves composed of compound selectors, and which finally are composed of simple selectors.
 
-Simple selectors are the base atoms of a selector. They can be either
+Simple selectors are the base atoms of a CSS selector. In Sass, they can be either:
  - id `#foo`
  - class `.foo`
  - attribute `[foo]`, with one of 6 operators (`[foo$=bar]`, etc.)
@@ -24,7 +24,7 @@ Simple selectors are the base atoms of a selector. They can be either
  - the parent selector `&`
  - placeholder `%foo`
 
-If you're familiar with CSS, the first 6 should look pretty familiar. The last 2 might only make sense if you're used to Sass. The parent selector, as the name implies, refers to the selector of the parent style rule. If the style rule is at the root, then this is `null`. Parent selectors are resolved prior to extension, so they're not necessary to understand `@extend`.
+If you're familiar with CSS, the first 6 should look pretty familiar. The last 2 might only make sense if you're used to Sass. The parent selector, as the name implies, refers to the selector of the parent style rule. A selector will have a parent if it's [nested inside another rule](https://sass-lang.com/documentation/style-rules/#nesting). If the style rule is at the root, then this is `null`. Parent selectors are resolved prior to extension, so they're not necessary to understand `@extend`.
 
 The placeholder selector is special in that it gets removed during compilation and will not show up in the resulting CSS. This is useful when combined with `@extend`, as it allows for the creation of base classes that can be extended but not show up in the CSS.
 
@@ -38,19 +38,19 @@ A bit more verbose phrasing of this can be found in the [CSS spec](https://draft
 
 #### Anatomy of a Single Extend
 
-Extension has three arguments: the extendee, the extender, and the target. The extendee and extender are selector lists. The target is a simple selector.
+Extension can be thought of as a function that takes three arguments: the extendee, the extender, and the target. The extendee and extender are selector lists. The target is a simple selector.
 
 When we apply extension from the extender to the extendee, we look for all instances of the target and intelligently replace the target with the extender such that the extender takes on the same semantics of the target. 
 
 This phrasing is a bit dense, so let's look at a simple example of an extend:
 
 ```scss
-a {
+a { // extendee
     color: red;
 }
 
-b {
-    @extend a;
+b { // extender
+    @extend a;  // target
 }
 ```
 
@@ -165,7 +165,7 @@ is-superselector("a", "a.foo")
 `a` _is_ a superselector of `a.foo` because it matches all the elements that `a.foo` would.
 
 <!-- todo: i don't think they do get the idea -->
-At this point you probably get the idea. We'll talk about a few interesting cases before moving on:
+We'll talk about a few more interesting cases before moving on:
 
 ```scss
 is-superselector("a", "b")
@@ -183,12 +183,14 @@ is-superselector("a b", "a ~ b")
 // false
 is-superselector("a > b", "a b")
 // false
+is-superselector("a + b", "a + b")
+// true
 ```
 
-This is where we have to start caring about the semantics of combinators. The interesting case here is that the descendant combinator (` `) is considered a superselector of the next child combinator (`>`) while the inverse isn't true. The other combinators don't have any interesting interactions.
+This is where we have to start caring about the semantics of combinators. The interesting case here is that the descendant combinator (` `) is considered a superselector of the next child combinator (`>`) while the inverse isn't true. The other combinators don't have any interesting interactions, though they _are_ able to be superselectors of themselves.
 
 
-Superselector calculations work on selector lists as well: `a, b` is a superselector of `a` and `b`.
+Superselector calculations work on selector lists as well: `a, b` is a superselector of both `a` and `b`.
 
 The universal selector (`*`) is a superselector of everything.
 
@@ -336,7 +338,7 @@ selector-unify(".a", ".b");
 
 This is a pretty simple example. To match both class selectors, we just concatenate them into `.a.b`. Most unifications of simple selectors end up just concatenating the two, unless they're a special case like two ids, two psuedo elements, two type selectors, or `*`.
 
-In the case of `*`, for most combinations the result is just the second selector. You can think of it sort of like `true && X`. Our result is always just `X`. Things get a bit more complex when namespaces are involved, but we won't dive into that here.
+In the case of `*`, for most combinations the result is just the other selector. You can think of it sort of like `true && X`. Our result is always just `X`. Things get a bit more complex when namespaces are involved, but we won't dive into that here.
 
 Unification of complex selectors is a bit more.... complex :p
 
@@ -374,7 +376,7 @@ Once we resolve and unify the bases, we need to unify the parent selectors. We r
 
 #### Weave
 
-The goal of weave is to generate all possible orderings of the parent selectors. Earlier we looked at a pretty simple example, but weaving can get pretty complex. In particular, we run into increased complexity when we have combinators other than descendant (` `), we have multiple parent selectors (e.g. `.a .b .c` and `.d .e .f`), and if the parents share a selector either with each other or the base.
+The goal of `weave` is to generate all possible orderings of the parent selectors. Earlier we looked at a pretty simple example, but weaving can get pretty complex. In particular, we run into increased complexity when we have combinators other than descendant (`>`, `+`, or `~`), we have multiple parent selectors (e.g. `.a .b .c` and `.d .e .f`), or if the parents share a selector either with each other or the base.
 
 Weaving maintains the invariant that the relative ordering of compound selectors within a given complex selector will remain the same. That is, if we are merging `.a .b .c` and `.d .e .f`, `.a` will always come before `.b` and `.d` will always come before `.e`. This should make sense intuitively -- if we swapped the order of `.a` and `.b`, we would be modifying the semantics of the original selector.
 
