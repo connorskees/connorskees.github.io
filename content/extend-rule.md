@@ -8,7 +8,14 @@ The implementation of `@extend` is surprisingly complex. It's by far one of the 
 
 This post goes through a high level overview of the algorithms behind `@extend`. An understanding of Sass is not necessary, but some familiarity with HTML and CSS is expected. 
 
-<!-- date = "1970-01-01" -->
+I'll walk through a high level description of the primitives necessary to implement `@extend`, and then explain how they can be combined together to get the final algorithm. The general outline of this is:
+ - [Anatomy of a Selector](#anatomy-of-a-selector)
+ - [Anatomy of a Single Extend](#anatomy-of-a-single-extend)
+ - [Superselectors](#superselectors)
+ - [Specificity](#specificity)
+ - [Selector Unification](#selector-unification)
+ - [Weave](#weave)
+ - [Putting It All Together](#putting-it-all-together)
 
 #### Anatomy of a Selector
 
@@ -24,7 +31,7 @@ Simple selectors are the base atoms of a CSS selector. In Sass, they can be eith
  - the parent selector `&`
  - placeholder `%foo`
 
-If you're familiar with CSS, the first 6 should look pretty familiar. The last 2 might only make sense if you're used to Sass. The parent selector, as the name implies, refers to the selector of the parent style rule. A selector will have a parent if it's [nested inside another rule](https://sass-lang.com/documentation/style-rules/#nesting). If the style rule is at the root, then this is `null`. Parent selectors are resolved prior to extension, so they're not necessary to understand `@extend`.
+If you're familiar with CSS, the first 6 should already be familiar. The last 2 might only make sense if you're used to Sass. The parent selector, as the name implies, refers to the selector of the parent style rule. A selector will have a parent if it's [nested inside another rule](https://sass-lang.com/documentation/style-rules/#nesting). If the style rule is at the root, then this is `null`. Parent selectors are resolved prior to extension, so they're not necessary to understand `@extend`.
 
 The placeholder selector is special in that it gets removed during compilation and will not show up in the resulting CSS. This is useful when combined with `@extend`, as it allows for the creation of base classes that can be extended but not show up in the CSS.
 
@@ -333,7 +340,7 @@ Unification is fallible and will return `null` if it's not possible to represent
 As before, we'll walk through a couple examples to get an idea of how this primitive works.
 
 ```scss
-selector-unify(".a", ".b");
+selector-unify(".a", ".b")
 ```
 
 This is a pretty simple example. To match both class selectors, we just concatenate them into `.a.b`. Most unifications of simple selectors end up just concatenating the two, unless they're a special case like two ids, two psuedo elements, two type selectors, or `*`.
@@ -361,20 +368,20 @@ We start by looking at the last compound selector of both complex selectors and 
 Let's walk through a 2 examples of this:
 
 ```scss
-selector-unify("a .foo", "a .bar");
+selector-unify("a .foo", "a .bar")
 ```
 
 Here, unification of the two base selectors succeeds and gives us `.foo.bar`, making our final unified selector `a .foo.bar`.
 
 ```scss
-selector-unify("a #foo", "a #bar");
+selector-unify("a #foo", "a #bar")
 ```
 
 In this example, `#foo` and `#bar` can't be unified, and so the entire result is `null`.
 
 Once we resolve and unify the bases, we need to unify the parent selectors. We refer the algorithm that does this as "weave."
 
-#### Weave
+##### Weave
 
 The goal of `weave` is to generate all possible orderings of the parent selectors. Earlier we looked at a pretty simple example, but weaving can get pretty complex. In particular, we run into increased complexity when we have combinators other than descendant (`>`, `+`, or `~`), we have multiple parent selectors (e.g. `.a .b .c` and `.d .e .f`), or if the parents share a selector either with each other or the base.
 
@@ -408,8 +415,89 @@ The case in which the first parents are the same should be pretty intuitive --
 selector-unify(".a .b .c", ".a .d .c");
 ```
 
-Here, 
+Here, we can maintain the semantics of both selectors by only permuting the middle compound selector. Our unification result is `.a .b .d .c, .a .d .b .c`. 
 
+If the selectors instead share a middle compound selector, we can do a similar trick.
+
+```scss
+selector-unify(".a .b .c", ".e .b .c");
+```
+
+Our result is `.a .e .b .c, .e .a .b .c`. We keep `.b .c` the same between both complex selectors, but we permute `.a` and `.e`.
+
+In both cases that we've seen here, not de-duplicating the selector would change the semantics of the unified result from that of the original selectors. In our first case, if Sass had emitted `.a .a .b .d .c`, the additional `.a` would not only be superfluous -- it would be incorrect. The original selectors being unified only required a single `.a` parent.
+
+The next complex case to look at is when we have to worry about combinators.
+
+Before discussing combinators further though, I do want to mention that Sass today is in the process of [changing how it handles invalid combinator sequences](https://github.com/sass/sass/issues/3340). For this reason I will be skipping over talking about parts of the existing algorithm that attempt to handle them gracefully.
+
+Let's go back to the simplest unify example that we've looked at: `selector-unify(".a .c", ".b .c")`. Hopefully you remember what the unified result is -- `.a .b .c, .b .a .c`. This should make sense so far. But what happens if we insert a combinator into the mix?
+
+```scss
+selector-unify(".a > .c", ".b .c")
+```
+
+How should the result be updated to account for the combinator? 
+
+It helps to look at the two complex selectors separately, `.a .b .c` and `.b .a .c`. For the latter, it's pretty straightforward; we can maintain the semantics by simply adding a combinator between `.a` and `.c`: `.b .a > .c`. 
+
+For the former case, it's harder to reason about. Should the combinator go between the `.a` and `.b` or the `.b` and `.c`. The answer is actually neither -- Sass completely discards the second complex selector. Our final unified result is `.b .a > .c`.
+
+This can be pretty surprising -- why do we throw away the second complex selector? The answer is that it's impossible to model the semantics of `.a > .c` while adding a parent in between. The same is true of all combinators other than descendant:  `>`, `+`, and `~`.
+
+Things get even more complex when both selectors contain combinators other than descendant.
+
+Let's start with the case in which the combinators on both sides are the same,
+
+```scss
+selector-unify(".a > .c", ".b > .c")
+selector-unify(".a + .c", ".b + .c")
+selector-unify(".a ~ .c", ".b ~ .c")
+```
+
+The semantics of the combinators here affects how we can unify the two selectors. For `>` and `+`, the only valid unification is one in which the parent of `.c` has both `.a` and `.b`. That is, our total result is `.a.b .c`.
+
+The sibling combinator `~` is a less restrictive. The semantics of the unified selector should be that `.c` is a sibling of `.a` _and_ `.b`. If we express these semantics terms of selectors, our possible parents are `.a ~ .b`, `.b ~ .a`, and `.a.b`. This is very similar to how we do unification without combinators -- just with an additional `~`. Our final result would be `.a ~ .b ~ .c, .b ~ .a ~ .c, .b.a ~ .c`.
+
+Unlike regular unification without combinators, Sass actually does emit the `.b.a` case here. This is because the likelihood of this parent selector occurring in the context of the `~` combinator is much higher than in the general case.
+
+The case in which combinators are not the same is interesting as well:
+
+```scss
+selector-unify(".a > .c", ".b ~ .c")
+selector-unify(".a > .c", ".b + .c")
+selector-unify(".a + .c", ".b ~ .c")
+```
+
+For unification involving the `>` combinator, the result is simple. `.a` becomes the parent of the other selector: `.a > .b ~ .c` and `.a > .b + .c`.
+
+When combining `+` and `~`, we have to take into account that both combinators refer to sibling elements, with `~` being a more general version of `+`. Like when there are two `~` combinators, we have to permute both parent selectors. But in the case that one of the combinators is a `+`, we can omit one of the permutations. 
+
+<!-- todo: redundant or just not valid? -->
+Our final selector would be `.b ~ .a + .c, .b.a + .c`. Note that we didn't include the `.a ~ .b` variant, because that would be redundant.
+
+#### Putting it All Together
+
+Now that we've covered the primitives of extend, we need to combine them together to get the actual algorithm.
+
+Extension occurs during traversal of the Sass AST. When a selector node is encountered, it is registered in an "extension store." The extension store contains the state of all extensions of the current execution context. Namely, it maintains a mapping from simple selectors to the selector lists containing them and a mapping from simple selectors to the extensions containing them (i.e. the `@extend` rules having the simple selector as an extender). 
+
+The extension store also keeps tracks of source specificity and the original selectors as declared by the source code. This is done in order to maintain the invariant that Sass doesn't elide selectors as declared by users.
+
+When a selector is registered in the extension store, the mapping from simple selectors to the selectors containing them is populated. Then, if we have encountered any `@extend` rules up to this point, we apply them to the selector. We will have to update this selector again if we encounter further `@extend` rules during execution.
+
+The process of applying an extension is where we get to use the primitives we discussed earlier.
+
+#### Addendum
+
+...
+
+##### :not
+##### :is/:matches/:where
+##### :root
+##### :has
+##### Interactions with @media
+##### !optional
 
 <!-- We start by grouping our parent selectors based on combinators. We want to split sequences at the descendant (` `) selector. For example, `(A B > C D + E ~ > G)` would be grouped into `(A) (B > C) (D + E ~ > G)`.
 
@@ -439,3 +527,8 @@ We saw earlier that Sass generates all possible combinations of selectors. The a
 <!-- https://github.com/sass/sass/blob/main/spec/at-rules/extend.md -->
 <!-- https://github.com/sass/sass/blob/main/accepted/extend-specificity.md -->
 <!-- https://specificity.keegan.st/ -->
+
+
+
+
+Sass notably makes an optimization by not emitting the `.a.b` parent selector in the unification of `.a .c` and `.b .c`. This is because 
