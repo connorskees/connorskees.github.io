@@ -3,15 +3,15 @@ title = "Permutation Polynomials"
 date = "2023-09-19"
 +++
 
-In simple terms, a permutation polynomial is any polynomial which defines a 1:1 mapping of unique inputs to unique outputs. Having this property means that the output of such a polynomial appears to be a re-arranging, or permutation, of the input order. This is similar to a hash function, though operating on integers in a given range rather than arbitrary bytes. Generally these polynomials operate on a finite range of numbers, most of them having their input modulo some n. 
+In simple terms, a permutation polynomial is any polynomial which defines a 1:1 mapping of unique inputs to unique outputs. Having this property means that the output of such a polynomial appears to be a re-arranging, or permutation, of the input order. This is similar to a hash function, though operating on integers in a given range rather than arbitrary bytes and also is fully reversible. Generally these polynomials operate on a finite range of numbers, most of them having their input modulo some n. 
 
 The simplest such polynomial is $$f(x) = x$$, because every unique input is mapped to a unique output -- for example, 1 goes to 1, 2 goes to 2, 3 goes to 3, and so on. 
 
-The rest of this post will be about binary permutation polynomials, or those that are evaluated modulo a power of two (for example, on 64-bit integers). These polynomials have certain properties that make them easier to work with, and are what one would most commonly find in the wild, as the bit-widths of integers in most programming languages are powers of two.
+The rest of this post will be about binary permutation polynomials, or those that are evaluated modulo a power of two. These polynomials have certain properties that make them easier to work with, and are what one would most commonly find in the wild, as the bit-widths of integers in most programming languages are powers of two.
 
 ### Testing
 
-Determining whether an arbitrary polynomial is a permutation polynomial has not, to my knowledge, been shown to be possible using an algorithm that operates in polynomial time. This can make it computationally expensive to determine whether polynomials of high degree are permutation polynomials.
+Determining whether an arbitrary polynomial is a permutation polynomial has not, to my knowledge, been shown to be possible using an algorithm that executes in polynomial time. This can make it computationally expensive to determine whether polynomials of high degree are permutation polynomials.
 
 Polynomials that are modulo a power of two, however, are much easier to reason about. A polynomial modulo a power of two is a permutation polynomial iff:
 
