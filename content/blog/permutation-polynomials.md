@@ -11,9 +11,9 @@ The rest of this post will be about binary permutation polynomials, or those tha
 
 ### Testing
 
-Determining whether an arbitrary polynomial is a permutation polynomial has not, to my knowledge, been shown to be possible using an algorithm that executes in polynomial time. This can make it computationally expensive to determine whether polynomials of high degree are permutation polynomials.
+Determining whether an arbitrary polynomial is a permutation polynomial has not, to my knowledge, been shown to be possible using an algorithm that executes in polynomial time. This can make it computationally expensive to determine whether arbitrary polynomials of high degree are permutation polynomials.
 
-Polynomials that are modulo a power of two, however, are much easier to reason about. A polynomial modulo a power of two is a permutation polynomial iff:
+Polynomials that are modulo a power of two, however, are much easier to reason about and _do_ have an algorithm that executes in linear time. A polynomial modulo a power of two is a permutation polynomial iff:
 
 1. the 1-degree monomial (e.g. $$x$$) has an odd coefficient
 2. the sum of the coefficients of all even degree monomials (e.g. $$x^2$$, $$x^4$$, $$x^6$$, ...) is even
