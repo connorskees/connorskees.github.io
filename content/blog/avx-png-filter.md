@@ -8,9 +8,9 @@ PNG compression involves two schemes — filtering and DEFLATE.
 
 Filtering is a pre-processing step that operates row-by-row and is used to decrease entropy in the data. It works off the assumption that pixels and their neighbors are usually similar, but not necessarily the exact same. DEFLATE is a common lossless compression format combining LZ77 and Huffman coding.
 
-The step that we're interested in right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but I'll walk through a quick summary of the parts that are relevant to this post.
+The step that I'm interested in talking about right now is filtering. You can find a pretty good explanation of the algorithm in the [PNG specification](https://www.w3.org/TR/PNG-Filters.html), but I'll walk through a quick summary of the parts that are relevant to this post.
 
-We can start by introducing two primitives: the pixel, and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats affect how we encode and decode pixels. There are two properties we care about — color type and bit depth.
+I'll start by introducing two primitives: the pixel, and "bpp" or bits per pixel. PNGs support a number of different color formats, and those formats affect how we encode and decode pixels. There are two properties we care about — color type and bit depth.
 
 Color type defines the channels or components that make up a pixel. For example, in the RGBA color type, pixels consist of 4 channels — red, green, blue, and alpha. PNGs support simple grayscale, grayscale with alpha, RGB, RGBA, and an "indexed" color type that lets you assign a single integer to each color.
 
