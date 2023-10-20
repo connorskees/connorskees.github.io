@@ -1,11 +1,11 @@
 +++
-title = "Iterative Tree Traversal"
+title = "Iterative Binary Tree Traversal"
 date = "2023-10-06"
 +++
 
 There are two primary algorithms for traversing trees: breadth-first and depth-first search. 
 
-One can implement these algorithms either iteratively or recursively. In general, the recursive solution is easier to write and often easier to reason about, but the iterative solution is generally faster and, in my opinion, easier to extend to real problems.
+One can implement these algorithms either iteratively or recursively. In general, the recursive solution is easier to write and to reason about, but the iterative solution tends to be faster and, in my opinion, is easier to extend to real problems.
 
 This article will discuss the iterative implementation of these algorithms.
 
@@ -19,7 +19,7 @@ in-order: left -> root -> right
 post-order: left -> right -> root
 ```
 
-The way that I remember this is that the prefix (i.e. pre, in, post) defines the position of `root` in between `left -> right`. In other words, pre-order traversal has the root at the start, in-order in the middle, and post-order at the end. Left always comes before right.
+The way that I remember this is that the prefix (i.e. pre, in, post) give the position of `root` in between `left -> right`. In other words, pre-order traversal has the root at the start, in-order in the middle, and post-order at the end. Left always comes before right.
 
 Pre-order traversal is useful when you're searching for a particular element in a BST, you are copying the tree, or if you want to visit the root nodes before visiting the leaf nodes.
 
@@ -31,7 +31,7 @@ For all examples, we'll use a recursive tree structure that is defined as:
 
 ```python
 class TreeNode:
-    def __init__(self, val=0, left=None, right=None):
+    def __init__(self, val: int, left: Optional[TreeNode], right: Optional[TreeNode]):
         self.val = val
         self.left = left
         self.right = right
@@ -57,7 +57,7 @@ def dfs(root: TreeNode):
 
 This isn't any particular traversal, and you're free to change it up quite a bit. This is the basic code I use when I need to visit every node in a tree using DFS.
 
-Again, BFS is the exact same, except you pop from the front:
+As mentioned previously, BFS is the exact same except that you pop from the front:
 
 ```python
 from collections import deque
@@ -79,7 +79,7 @@ def bfs(root: TreeNode):
 
 In python, we use the `deque` data structure to get efficient left-popping. If we were to use a regular array, popping from the left would be an O(n) operation, since all the elements in the array would have to be shifted down by 1. The equivalent data structure in Rust is [`VecDeque`](https://doc.rust-lang.org/std/collections/struct.VecDeque.html).
 
-Breadth-first search is also called level-order search, as you visit all the nodes in a particular level before moving on to the next level. 
+Breadth-first search is also called level-order search, as you visit all the nodes in a particular level or row before moving on to the next level. 
 
 In general it's quite rare to encounter a problem that benefits significantly with either BFS or DFS. BFS is very useful for finding the shortest path between two nodes. If there is high width and low depth, generally DFS is preferable. Whereas if there is a low width and high depth, BFS is preferable. 
 
@@ -103,7 +103,7 @@ def dfs_pre_order(root: TreeNode):
         queue.append(node.left)
 ```
 
-This is quite similar to the above example, except that we append the right node before the left node.
+This is quite similar to the above DFS example, except that we push the right node on the stack before the left node.
 
 For a DFS that is explicitly in-order:
 
@@ -126,27 +126,7 @@ def dfs_in_order(root: TreeNode):
 
 The difference here is that we now keep track of a new value, `current`, which we use to traverse the left child nodes prior to the root and right child nodes.
 
-
-For a DFS that is explicitly post-order:
-
-```python
-def dfs_in_order(root: TreeNode):
-    current = root
-    queue = []
-
-    while queue or current:
-        if current:
-            queue.append(current)
-            current = current.left
-        else:
-            node = queue.pop()
-
-            # ... do something with node ...
-
-            current = node.right
-```
-
-It is also possible to implement in-order traversal iteratively using O(1) extra space (i.e. with no stack) using [Morris traversal](https://stackoverflow.com/questions/5502916/explain-morris-inorder-tree-traversal-without-using-stacks-or-recursion). This algorithm works by modifying the tree as it is traversed over. In general it is rare to see this algorithm asked about, so I will omit discussing the particulars here.
+It is also possible to implement in-order traversal iteratively using O(1) extra space (i.e. with no stack) using [Morris traversal](https://stackoverflow.com/questions/5502916/explain-morris-inorder-tree-traversal-without-using-stacks-or-recursion). This algorithm works by temporarily modifying the tree as it is traversed over. In general it is rare to see this algorithm asked about, so I will omit discussing the particulars here.
 
 Post-order traversal is slightly more complex than pre- and in- order traversal. In order to visit the leaf nodes before the root nodes, we have to traverse the entire tree to get to the leaf nodes. The simplest implementation is one which uses two stacks. The first to implement basic DFS, and then the second which is built up during the first DFS:
 
