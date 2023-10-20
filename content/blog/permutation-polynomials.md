@@ -3,7 +3,9 @@ title = "Permutation Polynomials"
 date = "2023-09-19"
 +++
 
-In simple terms, a permutation polynomial is any polynomial which defines a 1:1 mapping of unique inputs to unique outputs. Having this property means that the output of such a polynomial appears to be a re-arranging, or permutation, of the input order. This is similar to a hash function, though operating on integers in a given range rather than arbitrary bytes and also is fully reversible. Generally these polynomials operate on a finite range of numbers, most of them having their input modulo some n. 
+A permutation polynomial is any polynomial which acts as a permutation of a given set of numbers. In other terms, the polynomial defines a bijection from x to f(x), or a 1:1 mapping of unique inputs to unique outputs and also that each x value in the input domain appears in the output range.
+
+Generally these polynomials operate on a finite range of numbers, most of them having their input modulo some n. 
 
 The simplest such polynomial is $$f(x) = x$$, because every unique input is mapped to a unique output -- for example, 1 goes to 1, 2 goes to 2, 3 goes to 3, and so on. 
 
