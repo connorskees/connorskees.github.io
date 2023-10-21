@@ -3,13 +3,13 @@ title = "Iterative Binary Tree Traversal"
 date = "2023-10-06"
 +++
 
-There are two primary algorithms for traversing trees: breadth-first and depth-first search. 
+There are two primary algorithms for traversing trees: breadth-first search (BFS) and depth-first search (DFS).
 
-One can implement these algorithms either iteratively or recursively. In general, the recursive solution is easier to write and to reason about, but the iterative solution tends to be faster and, in my opinion, is easier to extend to real problems.
+In the iterative case, both algorithms rely on creating an array-like structure that stores the nodes to be visited. The main difference between these two is that in breadth-first search you pop from the front (requiring a double-ended queue), while in depth first search you pop from the back (requiring a stack).
 
-This article will discuss the iterative implementation of these algorithms.
+DFS is trivial to implement recursively; since it relies on a stack, it can reuse the call-stack. As with all recursive algorithms, in general the iterative form is faster because it avoids the overhead of function calls and has better cache-coherence. BFS, in contrast, is most naturally implemented iteratively.
 
-In the iterative case, the main difference between breadth-first and depth-first search is that in breadth-first search you pop from the front (requiring a double-ended queue), while in depth first search you pop from the back (requiring a stack).
+The recursive implementation of DFS can be more elegant, and often uses fewer lines, but I tend to find it harder to extend to more complex problems.
 
 DFS can be further broken down into pre-order, in-order, and post-order traversal. These traversals change the order in which the root and its left and right children are visited. The specific orderings are:
 
@@ -27,7 +27,7 @@ Post-order traversal is useful if you're deleting a tree (in e.g. C or C++) or i
 
 In-order traversal is useful if you wish to get a sorted array of nodes.
 
-For all examples, we'll use a recursive tree structure that is defined as:
+For all examples, I'll use a recursive tree structure that is defined as:
 
 ```python
 class TreeNode:
