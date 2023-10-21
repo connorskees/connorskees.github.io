@@ -25,7 +25,7 @@ Pre-order traversal is useful when you're searching for a particular element in 
 
 Post-order traversal is useful if you're deleting a tree (in e.g. C or C++) or if you want to visit the leaf nodes before visiting root nodes.
 
-In-order traversal is useful if you wish to get a sorted array of nodes.
+In-order traversal is useful if you wish to get a sorted array of nodes, in the case that the tree being traversed over is a binary search tree.
 
 For all examples, I'll use a recursive tree structure that is defined as:
 
