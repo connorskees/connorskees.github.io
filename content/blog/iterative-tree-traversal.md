@@ -81,7 +81,7 @@ In python, we use the `deque` data structure to get efficient left-popping. If w
 
 Breadth-first search is also called level-order search, as you visit all the nodes in a particular level or row before moving on to the next level. 
 
-In general it's quite rare to encounter a problem that benefits significantly with either BFS or DFS. BFS is very useful for finding the shortest path between two nodes. If there is high width and low depth, generally DFS is preferable. Whereas if there is a low width and high depth, BFS is preferable. 
+In general it's quite rare to encounter a problem that benefits significantly more with either BFS or DFS. BFS is very useful for finding the shortest path between two nodes. DFS is useful for finding a particular element within the tree. If there is high width and low depth, generally DFS is preferable. Whereas if there is a low width and high depth, BFS is preferable. For a specific input one algorithm may perform better, but in the generic case of all inputs, unless there is some bias in the input, it tends not to matter whether you choose BFS or DFS.
 
 Returning to the different kinds of DFS traversals:
 
@@ -126,9 +126,9 @@ def dfs_in_order(root: TreeNode):
 
 The difference here is that we now keep track of a new value, `current`, which we use to traverse the left child nodes prior to the root and right child nodes.
 
-It is also possible to implement in-order traversal iteratively using O(1) extra space (i.e. with no stack) using [Morris traversal](https://stackoverflow.com/questions/5502916/explain-morris-inorder-tree-traversal-without-using-stacks-or-recursion). This algorithm works by temporarily modifying the tree as it is traversed over. In general it is rare to see this algorithm asked about, so I will omit discussing the particulars here.
+It is also possible to implement in-order traversal iteratively using O(1) extra space (i.e. with no stack) using [Morris traversal](https://stackoverflow.com/questions/5502916/explain-morris-inorder-tree-traversal-without-using-stacks-or-recursion). This algorithm works by temporarily modifying the tree as it is traversed over. It is rare to see this algorithm asked about, so I will omit discussing the particulars here.
 
-Post-order traversal is slightly more complex than pre- and in- order traversal. In order to visit the leaf nodes before the root nodes, we have to traverse the entire tree to get to the leaf nodes. The simplest implementation is one which uses two stacks. The first to implement basic DFS, and then the second which is built up during the first DFS:
+Post-order traversal is slightly more complex than pre- and in- order traversal. In order to visit the leaf nodes before the root nodes, we have to traverse the entire tree to get to the leaf nodes. The simplest implementation is one which uses two stacks. The first to perform a basic DFS, and then the second which is built up during the first DFS:
 
 ```python
 def dfs_post_order(root: TreeNode):
