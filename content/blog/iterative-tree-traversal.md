@@ -5,7 +5,7 @@ date = "2023-10-06"
 
 There are two primary algorithms for traversing trees: breadth-first search (BFS) and depth-first search (DFS).
 
-In the iterative case, both algorithms rely on creating an array-like structure that stores the nodes to be visited. The main difference between these two is that in breadth-first search you pop from the front (requiring a double-ended queue), while in depth first search you pop from the back (requiring a stack).
+In the iterative case, both algorithms rely on creating an array-like structure that stores the nodes to be visited. The main difference between these two is that in breadth-first search you pop from the front (requiring a double-ended queue), while in depth-first search you pop from the back (requiring a stack).
 
 DFS is trivial to implement recursively; since it relies on a stack, it can reuse the call-stack. As with all recursive algorithms, in general the iterative form is faster because it avoids the overhead of function calls and has better cache-coherence. BFS, in contrast, is most naturally implemented iteratively.
 
