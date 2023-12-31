@@ -41,18 +41,18 @@ A simple implementation of DFS looks like this:
 
 ```python
 def dfs(root: TreeNode):
-    queue = [root]
+    stack = [root]
 
-    while queue:
-        node = queue.pop()
+    while stack:
+        node = stack.pop()
 
         if not node:
             continue
 
         # ... do something with node ...
 
-        queue.append(node.left)
-        queue.append(node.right)
+        stack.append(node.left)
+        stack.append(node.right)
 ```
 
 This isn't any particular traversal, and you're free to change it up quite a bit. This is the basic code I use when I need to visit every node in a tree using DFS.
@@ -89,18 +89,18 @@ For a DFS that is explicitly pre-order:
 
 ```python
 def dfs_pre_order(root: TreeNode):
-    queue = [root]
+    stack = [root]
 
-    while queue:
-        node = queue.pop()
+    while stack:
+        node = stack.pop()
 
         if not node:
             continue
 
         # ... do something with node ...
 
-        queue.append(node.right)
-        queue.append(node.left)
+        stack.append(node.right)
+        stack.append(node.left)
 ```
 
 This is quite similar to the above DFS example, except that we push the right node on the stack before the left node.
@@ -110,14 +110,14 @@ For a DFS that is explicitly in-order:
 ```python
 def dfs_in_order(root: TreeNode):
     current = root
-    queue = []
+    stack = []
 
-    while queue or current:
+    while stack or current:
         if current:
-            queue.append(current)
+            stack.append(current)
             current = current.left
         else:
-            node = queue.pop()
+            node = stack.pop()
 
             # ... do something with node ...
 
@@ -132,44 +132,44 @@ Post-order traversal is slightly more complex than pre- and in- order traversal.
 
 ```python
 def dfs_post_order(root: TreeNode):
-    queue1 = [root]
-    queue2 = []
+    stack1 = [root]
+    stack2 = []
 
-    while queue1:
-        node = queue1.pop()
+    while stack1:
+        node = stack1.pop()
 
         if not node:
             continue
 
-        queue2.append(node)
+        stack2.append(node)
 
-        queue1.append(node.left)
-        queue1.append(node.right)
+        stack1.append(node.left)
+        stack1.append(node.right)
 
-    while queue2:
-        node = queue2.pop()
+    while stack2:
+        node = stack2.pop()
 
         # ... do something with node ...
 ```
 
-Note that in the second loop, this is the same as `for node in reversed(queue2)`.
+Note that in the second loop, this is the same as `for node in reversed(stack2)`.
 
 It is also possible to implement post-order traversal using a single stack, though I think the implementation is a bit more annoying to remember.
 
 ```python
 def dfs_post_order_one_stack(root: TreeNode):
     current = root
-    queue = []
+    stack = []
      
-    while current or queue:
+    while current or stack:
         while current:
-            queue.append(current)
-            queue.append(current)
+            stack.append(current)
+            stack.append(current)
             current = current.left
          
-        node = queue.pop()
+        node = stack.pop()
  
-        if queue and queue[-1] == node:
+        if stack and stack[-1] == node:
             current = node.right
         else:
             # ... do something with node ...
