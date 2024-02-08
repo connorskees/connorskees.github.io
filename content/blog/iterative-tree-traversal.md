@@ -19,7 +19,7 @@ in-order: left -> root -> right
 post-order: left -> right -> root
 ```
 
-The way that I remember this is that the prefix (i.e. pre, in, post) give the position of `root` in between `left -> right`. In other words, pre-order traversal has the root at the start, in-order in the middle, and post-order at the end. Left always comes before right.
+The way that I remember this is that the prefix (i.e. pre, in, post) gives the position of `root` in between `left -> right`. In other words, pre-order traversal has the root at the start, in-order in the middle, and post-order at the end. Left always comes before right.
 
 Pre-order traversal is useful when you're searching for a particular element in a BST, you are copying the tree, or if you want to visit the root nodes before visiting the leaf nodes.
 
