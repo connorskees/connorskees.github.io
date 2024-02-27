@@ -4,7 +4,7 @@ title = "Merge-Tree — A Data Structure for Real-time Collaborative Text Editin
 
 Merge-tree is a distributed, low-latency B+ tree used to implement real-time collaborative editing of sequences, strings, and matrices.
 
-This is an entry-level explanation of the core architecture and algorithms backing the merge-tree data structure. This is the sort of explanation I would have wanted in my first 3 months of working on it. The goal of this document is that someone with no context on collaborative editing can be able to reason about the code at a high level.
+This is an entry-level explanation of the core architecture and algorithms backing the merge-tree data structure and is the sort of explanation I would have wanted in my first 3 months of working on it. The goal of this document is that someone with no context on collaborative editing can be able to reason about the code at a high level.
 
 <!-- To this end, some of the information may be redundant for those already familiar with other distributed data structures or collaborative editing in general. My hope is that by reading this,  -->
 
@@ -241,6 +241,8 @@ Deleted segments are not immediately removed from the merge-tree, but rather mar
 The other sort of cruft is inefficient segmentation or "fragmentation." This is where we use more segments than is necessary to represent a given string, for example `["a", "b", "c"]` vs `["abc"]`. Over time the merge-tree tends towards this more-segmented structure as more and more ops split the segments. Superfluous segments increase memory usage and the time it takes to walk the tree, as there are more segments to traverse.
 
 During normal operation, the merge-tree needs these tombstoned and split segments to properly function, but there _is_ a point in which this information becomes superfluous. Once all collaborating clients have seen a given insertion or deletion, we can safely remove a tombstoned segment or combine adjacent segments.
+
+This process of cleaning up, or garbage collecting, the merge-tree is called **zamboni**. In real life, Zambonis clean the top layer of ice on an ice rink. Merge-tree has a similar process here where it cleans up the top layer of its segments incrementally.
 
 This leads us into two concepts: the **minimum sequence number** (minSeq) and the **collab(oration) window**. The minimum sequence number is how merge-tree is able to know that all clients have seen a given change and represents the minimum of the refSeq of all the participating clients. The collab window is defined in terms of the minSeq, and refers to all the ops that occurred between the minSeq and the current highest sequence number from the server.
 
