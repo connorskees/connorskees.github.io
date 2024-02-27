@@ -8,7 +8,7 @@ This is an entry-level explanation of the core architecture and algorithms backi
 
 <!-- To this end, some of the information may be redundant for those already familiar with other distributed data structures or collaborative editing in general. My hope is that by reading this,  -->
 
-This document only describes the core merge-tree algorithms, and does not touch on the ancillary  algorithms that are necessary for the merge-tree to function, but which do not live inside merge-tree itself. This includes problems like persistence, real-time communication, algorithms built on top of merge-tree such as those specific to strings or matrices, and some server-side functionality that will be discussed later.
+This document only describes the core merge-tree algorithms and does not touch on the ancillary algorithms that are necessary for the merge-tree to function, but which do not live inside the merge-tree itself. This includes problems like persistence, real-time communication, algorithms built on top of merge-tree such as those specific to strings or matrices, and some server-side functionality that will be discussed later.
 
 Although in theory a merge-tree need not operate on text, I find it easiest to reason about the core algorithms in the context of text editing, and so much of the higher-level explanation will center around that.
 
@@ -183,7 +183,9 @@ If client A then inserts the character "X" at position 3, we get the string "abc
 
 What would happen, though, if client B were to delete the character at position 4 ("d") concurrent to client A inserting the character "X"?
 
-Let's say that the deletion operation reaches the server after the insertion operation. The insertion has seq of 4 and the deletion has seq of 5. We'd like for our resulting string to be "abcXe". The character "X" was inserted between the "c" and the "d" from the perspective of client A, and the character "d" was deleted from the perspective of client B. When we combine these two operations, we want to keep "X" in relatively the same position and delete the same character ("d").
+Let's say that the deletion operation reaches the server after the insertion operation. The insertion has seq of 4 and the deletion has seq of 5.
+
+We'd like for our resulting string to be "abcXe". The character "X" was inserted between the "c" and the "d" from the perspective of client A, and the character "d" was deleted from the perspective of client B. When we combine these two operations, we want to keep "X" in relatively the same position and delete the same character ("d").
 
 Our deletion op looks like this:
 
@@ -198,17 +200,25 @@ Our deletion op looks like this:
 }
 ```
 
-Looking at the refSeq, we can see that this deletion op was unaware of the insertion op. When we go to do a traversal to find the characters at the given positions, we will ignore any segments inserted after seq 3.
+I'll walk through an example of the algorithms I've described so far.
 
-We start with the segment "ab". This segment was inserted at seq 1, so below our refSeq, and has no removedSeq. We can add its length of 2 to our running total. The next segment is "c", which has the same behavior.
+To start removing segments, we need to find which segments fall within the bounds of the remove, [3, 4). If either of those endpoints fall within a segment, that segment must be split. After splitting, we can do a depth-first tree traversal to find the start segment and then continue traversing until we reach the end segment. 
 
-Our running total is now 3. To find our start position, we're looking for the character which pushes us over the length, so the next segment we encounter with a length > 0 will be our start.
+Like before, we walk the segments summing up their length to determine when we reach a given position. In this case, we're looking for a start of 3 and an (exclusive) end of 4.
 
-After that we run into segment "X" which was inserted by client A at seq 4. With a seq of 4, it was inserted after the refSeq of our remove op. This means the remove op is unaware of this segment, and for our purposes has a length of 0, effectively skipping over the segment for this traversal. 
+Again, our string consists of the segments `["ab", "c", "X", "d", "e"]`. We start with the segment "ab". This segment was inserted at seq 1, which is below our refSeq. It also has no removedSeq. This means that our deletion op knew about this segment, and so it is visible to us.
 
-The next segment is "d". As mentioned, the next segment we encounter will be our start, so "d" is the start of our range. We can mark this segment removed by setting its removedSeq and removedClientId. 
+We can add its length of 2 to our running total. The next segment is "c", which has the same behavior and we can add its length of 1.
 
-Here we have the special case that this one segment is the entirety of our range, but if we had not reached our `end` position through this segment, we would continue traversing and mark all segments between the start and end removed.
+The next segment is "X", which was inserted by client A at seq 4. With a seq of 4, it was inserted after the refSeq (which is 3) of our remove op. This means the remove op is unaware of this segment, so we can skip it during this traversal. 
+
+The next segment is "d". This segment _is_ visible to the deletion op, and adding its length to our running total puts us over the start position. Now we have our start segment and we can continue traversing the tree until we reach our end position.
+
+In this case, that's pretty simple. We only have one segment to delete. 
+
+We can mark this segment removed by setting its removedSeq and removedClientId to the seq and client id of the op, 5 and "B" respectively. 
+
+All merge-tree ops follow this same pattern: find the position of an index in the tree and update some bookkeeping. In the case of remove and annotate, we change the properties of all the segments in a given range. In the case of insertion, we go to the insertion index, split the segment at that index if necessary, and do a tree insertion.
 
 #### Local Edits
 
@@ -250,7 +260,7 @@ The minSeq is not tracked directly by the merge-tree, and is an implementation d
 
 When the server tells the merge-tree that the minSeq has advanced, it is free to do cleanup of these tombstoned and split segments.
 
-The merge-tree keeps track of segments that need cleanup in a min-heap. For every operation (e.g. insert, remove), the merge-tree inserts into this min-heap the segments affected by that operation, keyed by the sequence number of that operation.
+The merge-tree keeps track of segments that need cleanup in a min-heap. For every operation (e.g. insert, remove, annotate), the merge-tree inserts into this min-heap the segments affected by that operation, keyed by the sequence number of that operation.
 
 When the minSeq advances, the merge-tree is able to pop segments off of this heap to determine whether they are eligible for zamboni cleanup. If a segment was removed before the minSeq (in other words "outside the collab window"), then it can be safely deleted from the tree. Otherwise, if the segment was _inserted_ prior to the minSeq, it can be safely combined with adjacent segments, assuming those segments have identical properties.
 
