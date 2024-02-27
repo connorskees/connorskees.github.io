@@ -1,5 +1,5 @@
 +++
-title = "MergeTree — A Data Structure for Real-time Collaborative Text Editing"
+title = "Merge-Tree — A Data Structure for Real-time Collaborative Text Editing"
 +++
 
 Merge-tree is a distributed, low-latency B+ tree used to implement real-time collaborative editing of sequences, strings, and matrices.
@@ -242,7 +242,7 @@ The other sort of cruft is inefficient segmentation or "fragmentation." This is 
 
 During normal operation, the merge-tree needs these tombstoned and split segments to properly function, but there _is_ a point in which this information becomes superfluous. Once all collaborating clients have seen a given insertion or deletion, we can safely remove a tombstoned segment or combine adjacent segments.
 
-This leads us into two concepts: the minimum sequence number (minSeq) and the collab(oration) window. The minimum sequence number is how merge-tree is able to know that all clients have seen a given change and represents the minimum of the refSeq of all the participating clients. The collab window is defined in terms of the minSeq, and refers to all the ops that occurred between the minSeq and the current highest sequence number from the server.
+This leads us into two concepts: the **minimum sequence number** (minSeq) and the **collab(oration) window**. The minimum sequence number is how merge-tree is able to know that all clients have seen a given change and represents the minimum of the refSeq of all the participating clients. The collab window is defined in terms of the minSeq, and refers to all the ops that occurred between the minSeq and the current highest sequence number from the server.
 
 The minSeq is not tracked directly by the merge-tree, and is an implementation detail of the environment in which it runs.
 
@@ -252,7 +252,7 @@ The merge-tree keeps track of segments that need cleanup in a min-heap. For ever
 
 When the minSeq advances, the merge-tree is able to pop segments off of this heap to determine whether they are eligible for zamboni cleanup. If a segment was removed before the minSeq (in other words "outside the collab window"), then it can be safely deleted from the tree. Otherwise, if the segment was _inserted_ prior to the minSeq, it can be safely combined with adjacent segments, assuming those segments have identical properties.
 
-The concepts of a minSeq and collab window are a large part of what makes merge-tree both novel and efficient. Other more-academic text editing algorithms rely on having the full edit history of the document persisted forever, while merge-tree is able to only keep exactly what is necessary.
+The concepts of a minSeq and collab window are a large part of what makes merge-tree both novel and efficient. Other, more-academic text editing algorithms rely on having the full edit history of the document persisted forever, while merge-tree is able to only keep exactly what is necessary.
 
 There is a small caveat today that zamboni is less effective (perhaps aggressive is a better word) than it could be. The above algorithm also runs during [summarization](#summarization), though during summarization we run a much more aggressive algorithm, essentially settling on the optimal representation of a given merge-tree. Zamboni runs progressively as the minSeq updates and does not always produce the most optimal representation.
 
