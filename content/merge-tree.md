@@ -6,8 +6,6 @@ Merge-tree is a distributed, low-latency B+ tree used to implement real-time col
 
 This is an entry-level explanation of the core architecture and algorithms backing the merge-tree data structure and is the sort of explanation I would have wanted in my first 3 months of working on it. The goal of this document is that someone with no context on collaborative editing can be able to reason about the code at a high level.
 
-<!-- To this end, some of the information may be redundant for those already familiar with other distributed data structures or collaborative editing in general. My hope is that by reading this,  -->
-
 This document only describes the core merge-tree algorithms and does not touch on the ancillary algorithms that are necessary for the merge-tree to function, but which do not live inside the merge-tree itself. This includes problems like persistence, real-time communication, algorithms built on top of merge-tree such as those specific to strings or matrices, and some server-side functionality that will be discussed later.
 
 Although in theory a merge-tree need not operate on text, I find it easiest to reason about the core algorithms in the context of text editing, and so much of the higher-level explanation will center around that.
@@ -21,9 +19,6 @@ At its simplest, a merge-tree defines the following operations:
 3. `annotateRange(start: number, end: number, properties: object)`
 
 You can insert text, remove a range of text, or give a key-value property to a range of text. 
-
-<!-- I will go into quite a bit of depth about each operation and how it works, but before doing so I want to talk about how a merge-tree is interacted with in practice. -->
-<!-- The only thing that a merge-tree sees is a stream of operations. -->
 
 The API of the merge-tree is based around these operations. These can be thought of as JSON payloads containing the above function parameters. For example, `{ type: "insert", index: 0, text: "foo" }`.
 
@@ -133,7 +128,9 @@ So far we haven't really motivated the reasons behind this array-of-segments str
 
 Merge-tree is able to simultaneously represent multiple different states by changing the visibility of segments. In practice, queries like "what is the character in this string at position 3" and "what is the full text of this string" are parameterized by both clientId and refSeq. These two parameters allow us to change the visibility of segments, and therefore see what the string would have looked like from the perspective of different clients at different points in time.
 
-All segments have a `seq` property, which is the sequence number at which they were inserted. Segments also have a `removedSeq`, an optional sequence number denoting if and when the segment was removed. Likewise, all segments have a `clientId` and `removedClientId` property, which denote the client that either inserted or removed the segment respectively.
+All segments have a `seq` property, which is the sequence number at which they were inserted. Segments also have a `removedSeq`, an optional sequence number denoting if and when the segment was removed.
+
+Likewise, all segments have a `clientId` and `removedClientId` property, which denote the client that either inserted or removed the segment respectively.
 
 Using these properties, and the properties from the op, the merge-tree can determine whether a given op would have been able to see a given segment.
 
@@ -147,7 +144,7 @@ The same is also true for `removedSeq` and `removedClientId`. If `op.clientId ==
 
 This behavior is extremely powerful and is the basis for all conflict resolution and collaboration within merge-tree.
 
-Let's look at an example string and op.
+Let's look at an example merge-tree written out as json:
 
 ```json
 [
@@ -169,7 +166,7 @@ Let's look at an example string and op.
 ]
 ```
 
-This is the string "abcde" with segments `["ab", "cd", "e"]`. Let's say all clients ("A" and "B") have seen all the ops, so both of their refSeqs are 3.
+This is the string "abcde" with segments `["ab", "cd", "e"]`. Let's say at this point all clients ("A" and "B") have a refSeq of 3 and that the current seq is also 3.
 
 If client A then inserts the character "X" at position 3, we get the string "abcXde" with segments `["ab", "c", "X", "d", "e"]`. Our segment "X" looks like:
 
@@ -252,7 +249,7 @@ The other sort of cruft is inefficient segmentation or "fragmentation." This is 
 
 During normal operation, the merge-tree needs these tombstoned and split segments to properly function, but there _is_ a point in which this information becomes superfluous. Once all collaborating clients have seen a given insertion or deletion, we can safely remove a tombstoned segment or combine adjacent segments.
 
-This process of cleaning up, or garbage collecting, the merge-tree is called **zamboni**. In real life, Zambonis clean the top layer of ice on an ice rink. Merge-tree has a similar process here where it cleans up the top layer of its segments incrementally.
+This process of cleaning up — or "garbage collecting" — the merge-tree is called **zamboni**. In real life, Zambonis clean the top layer of ice on an ice rink. Merge-tree has a similar process here where it cleans up the top (bottom?) layer of its segments incrementally.
 
 This leads us into two concepts: the **minimum sequence number** (minSeq) and the **collab(oration) window**. The minimum sequence number is how merge-tree is able to know that all clients have seen a given change and represents the minimum of the refSeq of all the participating clients. The collab window is defined in terms of the minSeq, and refers to all the ops that occurred between the minSeq and the current highest sequence number from the server.
 
@@ -322,7 +319,7 @@ The concept of a reference position is an abstract interface that could in theor
 
 In practice, there is only one kind of reference position[^2]: a local reference position. Local reference positions are not sent across the wire and there is no op for creating one. They are purely local to the current client and are not persisted at any point.
 
-Local reference position and reference position are today used interchangeably. The document linked in the section about discusses the behavior of local reference positions in more depth.
+"Local reference position" and "reference position" are today used interchangeably. The document linked in the section about discusses the behavior of local reference positions in more depth.
 
 For use in intervals, the interval collection manages sending the position of local references to other clients and recreating such references locally when changes are received from other clients.
 
