@@ -45,7 +45,7 @@ seq 1: "hello" (insert string "hello")
 seq 2: "h" (remove range `[1-5)`)  
 seq 3: "hi" (insert string "i")  
 
-This is relatively straightforward behavior to reason about, and should be about what you would expect to see from a regular string data structure used for normal text editing.
+This is relatively straightforward behavior to reason about, and should be roughly what you would expect to see from a regular string data structure used for normal text editing.
 
 The complexity of merge-tree comes from its support for collaboration. In order to talk about collaboration, we have to add 2 more fields to our ops: **client id** (`clientId`) and **reference sequence number** (`refSeq`).
 
