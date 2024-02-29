@@ -1,5 +1,6 @@
 +++
 title = "Merge-Tree — A Data Structure for Real-time Collaborative Text Editing"
+date = "2024-02-29"
 +++
 
 Merge-tree is a distributed, low-latency B+ tree used to implement real-time collaborative editing of sequences, strings, and matrices.
@@ -427,7 +428,7 @@ The below is a quick summary of the vocabulary terms discussed in more detail ab
 [sequence numbers in the context of network protocols like TCP]: https://gunkies.org/wiki/Sequence_number
 [existing writing about reference positions]: https://github.com/microsoft/FluidFramework/blob/7621baec8ef1ca0436d3429e5714317a281a40a7/packages/dds/merge-tree/docs/REFERENCEPOSITIONS.md
 
-[^1]: Technically sequence numbers _can_ be the same in the case of grouped batching and grouped ops in general, but I think it's helpful to ignore these cases when discussing the core algorithms.  
+[^1]: Technically sequence numbers of two ops _can_ be the same in the case of grouped batching and grouped ops in general, but I think it's helpful to ignore these cases when discussing the core algorithms.  
 
 [^2]: [Markers](#markers) technically also implement the `ReferencePosition` interface, but this is largely legacy cruft and this functionality is not widely used today by merge-tree or its consumers.  
 
