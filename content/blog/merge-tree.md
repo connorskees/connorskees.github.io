@@ -59,7 +59,7 @@ One user, or client, will create an op and send it to the server. The server wil
 
 All clients then process this op and update their refSeq. The refSeq is the sequence number of the last operation that a particular client processed from the server.
 
-When I first started working on merge-tree, I had the misconception that two ops were submitted concurrently if they had the same sequence number, but they are actually concurrent if either op has a refSeq below the sequence number of the other.
+When I first started working on merge-tree, I had the misconception that two ops were submitted concurrently if they had the same sequence number, but they are actually concurrent if both ops have a refSeq below the sequence number of the other.
 
 <!-- this section is to explain how refSeq is edited on each client -->
 
