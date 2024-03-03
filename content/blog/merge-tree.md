@@ -220,11 +220,11 @@ All merge-tree ops follow this same pattern: find the position of an index in th
 
 #### Local Edits
 
-If the merge-tree had to wait for an ack from the server every time it made a change, users would more than likely see very high latency between the op for the change being sent and the change being represented in the merge-tree. Especially in the case of multiple users editing the same merge-tree at once, to see the results of a single edit might mean we need to process 100 ops from other clients before getting to our own.
+If the merge-tree had to wait for an ack from the server every time it made a change, users would more than likely see very high latency between the op for the change being sent and the change being represented in the merge-tree. Especially in the case of multiple users editing the same merge-tree at once, seeing the results of a single edit might mean we need to process 100 ops from other clients before getting to our own.
 
-The solution to this is to allow **un-acked** edits to the merge-tree which allow us to represent a local state that can be edited immediately and then reaffirmed once we receive an ack from the client.
+The solution to this is to allow **un-acked** edits to the merge-tree which are used to create a local state that can be edited immediately and then reaffirmed once we receive an ack from the server.
 
-To support local edits, the merge-tree needs additional bookkeeping to keep track of local-only changes. This comes firstly in the form of a **local sequence number** (localSeq). Much like a regular sequence number, this is a strictly increasing integer that uniquely identifies an operation; however, unlike a regular sequence number, a localSeq is unique to a given merge-tree and lives completely in memory. localSeqs are not persisted anywhere, and exist only to manage the ephemeral state of local changes before they are **acked**.
+To support local edits, the merge-tree needs additional bookkeeping to keep track of local-only changes. This comes firstly in the form of a **local sequence number** (localSeq). Much like a regular sequence number, this is a strictly increasing integer that uniquely identifies an operation; however, unlike a regular sequence number, a localSeq is unique to each client and lives completely in memory. localSeqs are not persisted anywhere, and exist only to manage the ephemeral state of local changes before they are **acked**.
 
 Making use of this new local sequence number, segments contain additional bookkeeping the form of localSeq and localRemovedSeq. These are the local sequence numbers at which a segment was inserted or deleted respectively. If a segment has a local sequence number set, the corresponding _sequence number_ is set to a sentinel value of -1. We call this special value the **unassigned sequence number**.
 
@@ -244,11 +244,13 @@ The solution for this in merge-tree is to rebase and resubmit all the operations
 
 Over time, the merge-tree gets filled with a lot of cruft. This comes in two forms: tombstoned segments and fragmentation.
 
-Deleted segments are not immediately removed from the merge-tree, but rather marked as deleted and live in the tree as tombstones. In long running collaboration sessions, merge-trees can very easily end up with lots of superfluous tombstoned segments.
+Removed segments are not immediately deleted from the merge-tree, but rather marked as removed and live in the tree as tombstones. In long running collaboration sessions, merge-trees can very easily end up with lots of superfluous tombstoned segments.
+
+On terminology: here we use "removed" to mean deleted from the string from the perspective of the user, i.e. a segment is not visible, and "deleted" to mean that the segment is not in the string at all.
 
 The other sort of cruft is inefficient segmentation or "fragmentation." This is where we use more segments than is necessary to represent a given string, for example `["a", "b", "c"]` vs `["abc"]`. Over time the merge-tree tends towards this more-segmented structure as more and more ops split the segments. Superfluous segments increase memory usage and the time it takes to walk the tree, as there are more segments to traverse.
 
-During normal operation, the merge-tree needs these tombstoned and split segments to properly function, but there _is_ a point in which this information becomes superfluous. Once all collaborating clients have seen a given insertion or deletion, we can safely remove a tombstoned segment or combine adjacent segments.
+During normal operation, the merge-tree needs these tombstoned and split segments to properly function, but there _is_ a point in which this information becomes superfluous. Once all collaborating clients have seen a given insertion or deletion, we can safely delete a tombstoned segment or combine adjacent segments.
 
 This process of cleaning up — or "garbage collecting" — the merge-tree is called **zamboni**. In real life, Zambonis clean the top layer of ice on an ice rink. Merge-tree has a similar process here where it cleans up the top (bottom?) layer of its segments incrementally.
 
@@ -270,7 +272,7 @@ It should also be noted that the size (number of ops) of the collab window has a
 
 #### Partial Lengths
 
-**Partial lengths** are an optimization for quickly and efficiently calculating range length queries. Where a merge-tree is like a B+ tree that can represent many states simultaneously, I like to think of partial lengths as a similar structure based on segment trees.
+**Partial lengths** are an optimization for quickly and efficiently calculating range length queries. Where a merge-tree is like a B+ tree that can represent many states simultaneously, I like to think of partial lengths as a similar structure based on [segment trees].
 
 Just like the merge-tree can answer queries like "what did the text of the string look like for this user at this point in time," partial lengths can answer queries like "what was the _length of this segment_ for this user at this point in time?"
 
@@ -320,7 +322,7 @@ The concept of a reference position is an abstract interface that could in theor
 
 In practice, there is only one kind of reference position[^2]: a local reference position. Local reference positions are not sent across the wire and there is no op for creating one. They are purely local to the current client and are not persisted at any point.
 
-"Local reference position" and "reference position" are today used interchangeably. The document linked in the section about discusses the behavior of local reference positions in more depth.
+"Local reference position" and "reference position" are today used interchangeably. The document linked in the section above discusses the behavior of local reference positions in more depth.
 
 For use in intervals, the interval collection manages sending the position of local references to other clients and recreating such references locally when changes are received from other clients.
 
@@ -348,6 +350,10 @@ It's a bit annoying to get the ASCII diagram to look nice, but this should give 
 
 TODO -->
 
+<!-- #### Obliterate
+
+TODO -->
+
 #### Summarization
 
 **Summarization** is the process by which the merge-tree is serialized so that it can be loaded later. 
@@ -358,15 +364,19 @@ Today the merge-tree supports two summarization formats: legacy and v1. The diff
 
 The "legacy" format persists these ops literally and on load re-applies them. The v1 format eagerly applies these ops and persists the tree with them applied.
 
+In the legacy format, the merge-tree will collect all the operations that occurred in the collab window (i.e. above the minSeq) and store them separately in an array called "catch up ops". All changes to segments that occurred past the minSeq are not persisted in this format. On load, these catch up ops are re-applied to the tree to get to the state at summarization.
+
+In the v1 format, there is no such concept, and all segments are serialized exactly as they are in the tree at the point of summarization.
+
 The SharedString data structure makes use of the "legacy" format, while the SharedMatrix data structure makes use of the v1 format.
 
 There isn't a large reason to prefer one format over the other, and the distinction is largely for legacy reasons. Although one format is called "legacy," both formats are in active use and are supported -- the "legacy" name is a bit of a misnomer.
 
 #### Aside: What is a B-tree?
 
-B-trees and B+trees are admittedly a more-niche data structure, so I think it may be helpful to quickly describe what they are. That the merge-tree is a B+tree is very much an implementation detail, and so it is not critical to understand these algorithms, but it may make some of the inner workings more clear.
+B-trees and B+trees are admittedly more-niche data structures, so I think it may be helpful to quickly describe what they are. That the merge-tree is a B+tree is very much an implementation detail, and so it is not critical to understand these algorithms, but it may make some of the inner workings more clear.
 
-You are likely already familiar with a BST or binary search tree. This is a tree data structure in which at each node values lesser than that node can be found by taking the left branch and values greater than the node can be found to the right. 
+You are likely already familiar with a BST or binary search tree. This is a tree data structure in which at each node values lesser than that node can be found by taking the left branch and values greater than the node can be found to the right.
 
 A B-tree is exactly this data structure, except at each node instead of a single value, it contains a sorted array of values. This reduces the height of the tree, the number of unique allocations required, and improves the cache coherence of search and lookup.
 
@@ -427,6 +437,7 @@ The below is a quick summary of the vocabulary terms discussed in more detail ab
 [strictly increasing]: https://akuli.github.io/math-derivations/eqs-and-funcs/incdec-funcs.html
 [sequence numbers in the context of network protocols like TCP]: https://gunkies.org/wiki/Sequence_number
 [existing writing about reference positions]: https://github.com/microsoft/FluidFramework/blob/7621baec8ef1ca0436d3429e5714317a281a40a7/packages/dds/merge-tree/docs/REFERENCEPOSITIONS.md
+[segment trees]: https://cp-algorithms.com/data_structures/segment_tree.html
 
 [^1]: Technically sequence numbers of two ops _can_ be the same in the case of grouped batching and grouped ops in general, but I think it's helpful to ignore these cases when discussing the core algorithms.  
 
