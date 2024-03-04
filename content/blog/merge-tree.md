@@ -1,5 +1,5 @@
 +++
-title = "Merge-Tree — A Data Structure for Real-time Collaborative Text Editing"
+title = "Merge-Tree — A Data Structure for Real-Time Collaborative Text Editing"
 date = "2024-02-29"
 +++
 
