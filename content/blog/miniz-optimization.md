@@ -6,13 +6,13 @@ date = "2023-01-12"
 
 I'm working on a large blog post investigating the performance characteristics of various PNG decoders across several programming languages. A large part of this work is profiling and benchmarking them.
 
-The first decoder I'm looking at as part of this work is [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the rust ecosystem.
+The first decoder I've been looking at as part of this work is [`image-rs/png`](https://crates.io/crates/png), which is the most downloaded PNG decoder in the rust ecosystem.
 
 <!-- rust is easy to profile and benchmark, because it compiles to native code, so I can reuse existing tools built for C and C++. -->
 
-The image I like to start with for an intial profiling of PNG decoders is this [PNG of the periodic table of elements](https://commons.wikimedia.org/wiki/File:Periodic_table_large.png) from Wikimedia Commons. This file is in the public domain, so we can do whatever we want with it and it's a pretty good size at ~2.2mb.
+To start this kind of work, I like getting some cursory profiles and benchmarks just to see what the libraries are doing. The image I like to start with is this [PNG of the periodic table of elements](https://commons.wikimedia.org/wiki/File:Periodic_table_large.png) from Wikimedia Commons. This file is in the public domain, so we can do whatever we want with it and it's a pretty good size at ~2.2mb.
 
-To benchmark `image-rs/png`, we have to create a binary that uses it, since by itself it's just a library. I've created a simple rust program that looks like this:
+To benchmark `image-rs/png`, I have to create a binary that uses it, since by itself it's just a library. I've created a simple rust program that looks like this:
 
 ```rs
 fn main() {
@@ -35,9 +35,9 @@ fn main() {
 }
 ```
 
-This isn't perfect, but it works for our purposes right now. A more robust solution would elide the command line altogether and only benchmark the PNG operations themselves, but at the start we just want a rough idea of how the library performs.
+This isn't perfect, but it works for my purposes right now. A more robust solution would elide the command line altogether and only benchmark the PNG operations themselves, but at the start I just want a rough idea of how the library performs.
 
-I've made a few optimizations to improve the benchmark. Namely, I avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and I pre-allocate the entire out buffer in order to avoid having to resize it during the benchmark.
+I've made a few optimizations to improve the benchmark. Namely, I avoid file IO by using rust's `include_bytes!` macro, which will load the entire contents of a file into the binary at compile time instead of at runtime, and I pre-allocate the entire output buffer in order to avoid having to resize it during the benchmark.
 
 I'm using [`std::hint::black_box`](https://doc.rust-lang.org/stable/std/hint/fn.black_box.html) to make sure the compiler doesn't optimize anything differently just because we aren't actually using the result of the decoding.
 
