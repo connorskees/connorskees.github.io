@@ -10,29 +10,30 @@ I don't necessarily have the time or mathematical background to dig into the exi
 
 The below is what I hope to be the most comprehensive overview of modern multiplication algorithms with explanations written in plain English.
 
-- [Integers](#integers)
-  * [Looping](#looping)
-  * [Long Multiplication](#long-multiplication)
-  * [Karatsuba (1962)](#karatsuba-1962)
-  * [Toom–Cook](#toom-cook)
-  * [Schönhage–Strassen (1971)](#schonhage-strassen-1971)
-  * [Fürer (2007)](#furer-2007)
-  * [De–Kurur–Saha–Saptharishi (2008)](#de-kurur-saha-saptharishi-2008)
-  * [Harvey–van der Hoeven–Lecerf (2014)](#harvey-van-der-hoeven-lecerf-2014)
-  * [Covanov–Thomé (2015)](#covanov-thome-2015)
-  * [Harvey–van der Hoeven (2019)](#harvey-van-der-hoeven-2019)
+<!-- - [Integers](#integers)
+  - [Looping](#looping)
+  - [Long Multiplication](#long-multiplication)
+  - [Karatsuba (1962)](#karatsuba-1962)
+  - [Toom–Cook](#toomcook)
+  - [Schönhage–Strassen (1971)](#schönhagestrassen-1971)
+  - [Fürer (2007)](#fürer-2007)
+  - [De–Kurur–Saha–Saptharishi (2008)](#dekurursahasaptharishi-2008)
+  - [Harvey–van der Hoeven–Lecerf (2014)](#harveyvan-der-hoevenlecerf-2014)
+  - [Covanov–Thomé (2015)](#covanovthomé-2015)
+  - [Harvey–van der Hoeven (2019)](#harveyvan-der-hoeven-2019)
 - [Reals](#reals)
-  * [Floats](#floats)
-  * [Fixed point](#fixed-point)
+  - [Floats](#floats)
+  - [Fixed point](#fixed-point)
 - [Hardware Algorithms](#hardware-algorithms)
-  * [Shift + Add](#shift-add)
-  * [Modified Baugh-Wooley](#modified-baugh-wooley)
-  * [Booth (1950)](#booth-1950)
-  * [Wallace Trees (1964)](#wallace-trees-1964)
-  * [Dadda Multiplier (1965)](#dadda-multiplier-1965)
+  - [Shift + Add](#shift--add)
+  - [Modified Baugh-Wooley](#modified-baugh-wooley)
+  - [Booth (1950)](#booth-1950)
+  - [Wallace Trees (1964)](#wallace-trees-1964)
+  - [Dadda Multiplier (1965)](#dadda-multiplier-1965)
 - [Modular Multiplication](#modular-multiplication)
-  * [Kochanski](#kochanski)
-  * [Montgomery](#montgomery)
+  - [Kochanski](#kochanski)
+  - [Montgomery](#montgomery)
+- [Floats](#floats-1) -->
 
 # Integers
 
@@ -111,7 +112,7 @@ Anatoly Karatsuba's algorithm for multiplication was the first to break the O(n<
 
 Karatsuba is a recursive divide and conquer algorithm.
 
-If we split our multiplication up into multiple separate multiplications, we can re-use 
+If we split our multiplication up into multiple separate multiplications, we can re-use some of the intermediate results.
 
 The algorithm starts by splitting our multiplicand and multiplier in half, getting four numbers total. For example, we would split the number `23` into `20 + 3`, or the number `123456` into `123000 + 456`. 
 
@@ -243,3 +244,5 @@ mul rax, 34
 
 # Floats
 
+https://github.com/microsoft/referencesource/blob/master/System.Numerics/System/Numerics/BigIntegerBuilder.cs
+https://github.com/rust-num/num-bigint/blob/f09eee83f174619ac9c2489e3feec62544984bc5/src/biguint/multiplication.rs#L95

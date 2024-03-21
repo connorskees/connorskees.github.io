@@ -278,7 +278,7 @@ Just like the merge-tree can answer queries like "what did the text of the strin
 
 The goal for this data structure is to efficiently return the sum of the length of the child nodes given a refSeq and client id. By using partial lengths we can quickly skip over large sections of the tree by calculating their length from the perspective of our current operation.
 
-Recall our example tree traversal above where we sum up segment lengths to reach our desired position. Partial lengths is the structure that allows us to speed up this traversal from O($$n$$) to O($$log n$$). This makes partial lengths critical to the efficient use of the merge-tree data structure.
+Recall our example tree traversal above where we sum up segment lengths to reach our desired position. Partial lengths is the structure that allows us to speed up this traversal from O($$number of segments$$) to O($$log (number of segments)$$). This makes partial lengths critical to the efficient use of the merge-tree data structure.
 
 <!-- Partial lengths are in my opinion one of the most complex and hardest to debug parts of merge-tree. -->
 
@@ -386,7 +386,7 @@ So merge-tree is a binary search tree where at each node there is either an arra
 
 #### Review and Glossary
 
-The below is a quick summary of the vocabulary terms discussed in more detail above.
+The below is a quick summary of the vocabulary terms which are discussed in more detail above.
 
 **sequence number**: a strictly increasing integer assigned uniquely to all operations in the order they're processed by the server  
   
@@ -417,6 +417,8 @@ The below is a quick summary of the vocabulary terms discussed in more detail ab
 **acked**: an operation which has been sent to the server and given a sequence number  
   
 **unacked**: an operation which has not yet been given a sequence number by the server  
+  
+**client sequence number**: a per-client sequence number used by the server to ensure data integrity and that all ops are processed in order. unused by merge-tree
   
  <!-- - summarization
  - refSeq

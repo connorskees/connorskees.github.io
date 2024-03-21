@@ -9,13 +9,20 @@ The implementation of `@extend` is surprisingly complex. It's by far one of the 
 This post goes through a high level overview of the algorithms behind `@extend`. An understanding of Sass is not necessary, but some familiarity with HTML and CSS is expected. 
 
 I'll walk through a high level description of the primitives necessary to implement `@extend`, and then explain how they can be combined together to get the final algorithm. The general outline of this is:
- - [Anatomy of a Selector](#anatomy-of-a-selector)
- - [Anatomy of a Single Extend](#anatomy-of-a-single-extend)
- - [Superselectors](#superselectors)
- - [Specificity](#specificity)
- - [Selector Unification](#selector-unification)
- - [Weave](#weave)
- - [Putting It All Together](#putting-it-all-together)
+<!-- - [Anatomy of a Selector](#anatomy-of-a-selector)
+- [Anatomy of a Single Extend](#anatomy-of-a-single-extend)
+- [Superselectors](#superselectors)
+  - [Specificity](#specificity)
+- [Selector unification](#selector-unification)
+  - [Weave](#weave)
+- [Putting it All Together](#putting-it-all-together)
+- [Addendum](#addendum)
+  - [:not](#not)
+  - [:is/:matches/:where](#ismatcheswhere)
+  - [:root](#root)
+  - [:has](#has)
+  - [Interactions with @media](#interactions-with-media)
+  - [!optional](#optional) -->
 
 #### Anatomy of a Selector
 
@@ -327,7 +334,7 @@ a, b, a.foo {
 }
 ```
 
-There's a pretty noticeable ommission of `b.foo` here. Although this affects the semantics of our styles, Sass is free to omit this selector as an optimization as it doesn't violate the guarantee that the generated selector will have a specificity of at least that of the extender.
+There's a pretty noticeable omission of `b.foo` here. Although this affects the semantics of our styles, Sass is free to omit this selector as an optimization as it doesn't violate the guarantee that the generated selector will have a specificity of at least that of the extender.
 
 #### Selector unification
 
@@ -343,7 +350,7 @@ As before, we'll walk through a couple examples to get an idea of how this primi
 selector-unify(".a", ".b")
 ```
 
-This is a pretty simple example. To match both class selectors, we just concatenate them into `.a.b`. Most unifications of simple selectors end up just concatenating the two, unless they're a special case like two ids, two psuedo elements, two type selectors, or `*`.
+This is a pretty simple example. To match both class selectors, we just concatenate them into `.a.b`. Most unifications of simple selectors end up just concatenating the two, unless they're a special case like two ids, two pseudo elements, two type selectors, or `*`.
 
 In the case of `*`, for most combinations the result is just the other selector. You can think of it sort of like `true && X`. Our result is always just `X`. Things get a bit more complex when namespaces are involved, but we won't dive into that here.
 
