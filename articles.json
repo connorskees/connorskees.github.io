@@ -257,5 +257,11 @@
     "url": "http://mikejsavage.co.uk/blog/really-finishing-the-job.html",
     "tags": ["rust", "performance", "optimization", "simd", "vectorization"],
     "score": 6
+  },
+  {
+    "title": "The reckless, infinite scope of web browsers",
+    "author": "Drew DeVault",
+    "url": "https://drewdevault.com/2020/03/18/Reckless-limitless-scope.html",
+    "tags": ["browsers"]
   }
 ]
