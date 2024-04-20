@@ -23,9 +23,9 @@ The way that I remember this is that the prefix (i.e. pre, in, post) gives the p
 
 Pre-order traversal is useful when you're searching for a particular element in a BST, you are copying the tree, or if you want to visit the root nodes before visiting the leaf nodes.
 
-Post-order traversal is useful if you're deleting a tree (in e.g. C or C++) or if you want to visit the leaf nodes before visiting root nodes.
-
 In-order traversal is useful if you wish to get a sorted array of nodes, in the case that the tree being traversed over is a valid binary search tree.
+
+Post-order traversal is useful if you're deleting a tree (in e.g. C or C++) or if you want to visit the leaf nodes before visiting root nodes.
 
 For all examples, I'll use a recursive tree structure that is defined as:
 
