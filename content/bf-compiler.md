@@ -17,20 +17,19 @@ The BF operators have these semantics:
  - `+`: increment the value pointed to by the data pointer by 1
  - `-`: decrement the value pointed to by the data pointer by 1
  - `.`: print the value pointed to by the data pointer
- - `,`: read in a value and store it at the position pointed to by the data pointer
- - `,`: read in a value and store it at the position pointed to by the data pointer
+ - `,`: read a single byte from stdin and store it at the position pointed to by the data pointer
  - `[`: if the value pointed to by the data pointer is 0, then jump to the instruction after a matching `]`. otherwise continue
  - `]`: if the value pointed to by the data pointer is _not_ 0, then jump to the instruction after a matching `[`. otherwise continue
 
 These 8 operators are technically enough to make BF turing complete, though doing even simple tasks involves a massive number of characters and it quickly becomes hard to reason about programs.
 
-BF lacks types, variables, functions, and even idioms for doing things like multiplication, which makes it very hard to write. _But_ conversely, this makes it very easy to write an implementation of. We can skip things like parsing and typechecking, and just go straight to compilation. 
+BF lacks types, variables, functions, and even idioms for doing things like multiplication, which makes it very hard to write. _But_ conversely, this makes it very easy to write an implementation. We can skip things like parsing and typechecking, and just go straight to compilation. 
 
-## Writing a Brainfuck Intepreter
+## Writing a Brainfuck Interpreter
 
-Interpreters are generally easier to write than compilers. You don't need to know assembly or any complex compiler algorithms -- you just need to know the semantics of your operation and you can implement it in whatever language you want. We'll start by writing a simple BF interpreter to get a sense of BF's semantics, and also so that we have something to compare our compiler to.
+Interpreters are generally easier to write than compilers. You don't need to know assembly or any complex compiler algorithms — you just need to know the semantics of your operation and you can implement it in whatever language you want. We'll start by writing a simple BF interpreter to get a sense of BF's semantics, and also so that we have something to compare our compiler to.
 
-The first thing we need to do for our interpreter is intialize the data and the instruction buffers. This is actually not that dissimilar to how your operating system loads executable files. 
+The first thing we need to do for our interpreter is initialize the data and the instruction buffers. This is actually not that dissimilar to how your operating system loads executable files. 
 
 Our data buffer is just an array of 8-bit bytes called "cells." In brainfuck we have to provide the language with at least 30,000 cells, though we could go much higher than that if we wanted to.
 
@@ -308,7 +307,7 @@ enum Instruction {
 }
 ```
 
-Then we can write a simple parser to convert out input to this representation.
+Then we can write a simple parser to convert the input to this representation.
 
 ```rust
 fn parse_instructions(bytes: &[u8]) -> Vec<Instruction> {
@@ -428,7 +427,7 @@ With that out of the way, how do we translate our interpreter to a compiler?
 
 The first thing we want to think about is where to store the data pointer and the instruction pointer.
 
-The instruction pointer is pretty easy -- x86 already provides us a register called [`rip`](https://flint.cs.yale.edu/cs421/papers/x86-asm/asm.html#Control-Flow-Instructions:~:text=The%20x86%20processor%20maintains%20an%20instruction%20pointer%20(EIP)%20register%20that%20is%20a%2032%2Dbit%20value%20indicating%20the%20location%20in%20memory%20where%20the%20current%20instruction%20starts) which is exactly that. Plus, reusing the `rip` for moving between instructions lets us reuse `jmp` instructions and labels to do our control flow with `[` and `]`.
+The instruction pointer is pretty easy — x86 already provides us a register called [`rip`](https://flint.cs.yale.edu/cs421/papers/x86-asm/asm.html#Control-Flow-Instructions:~:text=The%20x86%20processor%20maintains%20an%20instruction%20pointer%20(EIP)%20register%20that%20is%20a%2032%2Dbit%20value%20indicating%20the%20location%20in%20memory%20where%20the%20current%20instruction%20starts) which is exactly that. Plus, reusing the `rip` for moving between instructions lets us reuse `jmp` instructions and labels to do our control flow with `[` and `]`.
 
 For the data pointer, we can store its value pretty much anywhere. Let's choose `rbx` since it's not really used by other constructs, like calling functions or syscalls.
 
@@ -881,7 +880,7 @@ mov rdi, 1
 syscall
 ```
 
-There's still plenty of optimization to be done -- for example, removing the redundant `mov rax, 1` and `mov rdi, 1` between sequential write syscalls and trivial things like removing empty loops or additions by 0 -- but I think what we have so far is sufficient to get the idea.
+There's still plenty of optimization to be done — for example, removing the redundant `mov rax, 1` and `mov rdi, 1` between sequential write syscalls and trivial things like removing empty loops or additions by 0 — but I think what we have so far is sufficient to get the idea.
 
 If we compare our first interpreter to our optimizing compiler on [this program which finds all the primes under 255](https://www.reddit.com/r/brainfuck/comments/847vl0/prime_number_generator_in_brainfuck/)[^1], our compiled program prints all the primes in 13 seconds. The interpreter ran for several minutes without printing anything before I killed it.
 
