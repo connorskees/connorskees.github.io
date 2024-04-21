@@ -1,4 +1,3 @@
-
 code {
   background-color: var(--bg-1);
   padding: 0.1em 0.2em;
@@ -139,4 +138,11 @@ pre code[class*="language-rs"]::before {
   content: "rust";
   color: #fff8f6;
   background: #ff4647;
+}
+
+pre code[class*="language-brainfuck"]::before,
+pre code[class*="language-bf"]::before {
+  content: "brainfuck";
+  color: #fff8f6;
+  background: #9f9544;
 }
