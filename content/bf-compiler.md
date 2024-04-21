@@ -373,31 +373,17 @@ match instruction_buffer[instruction_ptr] {
 }
 ```
 
-This is way simpler than traversing all the instructions to find the matching instruction each time. After making this change, our program to find all the primes under 99 takes about 200ms on my machine. About 2x faster, but still not enough! We can do better.
+This is way simpler than traversing all the instructions to find the matching instruction each time. After making this change, our program to find all the primes under 99 takes about 200ms on my machine. 2x faster, but still not enough! We can do better.
 
 ## Writing a Compiler
 
 A compiler is a program that takes a programming language and compiles it to some sort of assembly. Compilers for modern programming languages are huge and involve insane optimizations and complex type systems. We won't be worrying about any of that. Our first compiler is going to be as simple as possible.
 
-### What's Assembly, Really?
+What exactly are we compiling our program to?
 
-Here's some x86 assembly:
+Your CPU doesn't understand assembly. It understands machine code. Assembly is roughly the textual representation of machine code, but there are usually a few differences.
 
-```asm
-mov rax, 5
-```
-
-This moves the literal value `5` into the register `rax`. This is assembly. 
-
-Your CPU doesn't understand assembly. It understands machine code. Assembly is ~roughly the textual representation of machine code, but there are usually a few differences.
-
-To convert assembly into machine code your CPU can understand, we need to use an assembler.
-
-<!-- Installing `nasm` is pretty easy -- it's just `brew install nasm` on mac and `apt install nasm` on Ubuntu.  -->
-
-<!-- ### What's an Executable -->
-
-<!-- // todo -->
+To convert assembly into machine code your CPU can understand, we need to use an assembler. Then, to create an executable your operating system can run, we need to use a linker.
 
 ### Writing Assembly
 
