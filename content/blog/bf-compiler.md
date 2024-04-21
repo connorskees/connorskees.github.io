@@ -492,7 +492,7 @@ Instruction::Minus => asm += "sub BYTE PTR [rbx], 1\n",
 
 Syscalls, just like regular function calls in assembly, have specific calling conventions. We store the arguments in registers and execute the `syscall` instruction. To tell the operating system which syscall we want to make, we set the value in `rax` to a predefined number. For the `write` syscall, this number is [1 on Linux](https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/) and `0x02000004` [on Mac](https://opensource.apple.com/source/xnu/xnu-1504.3.12/bsd/kern/syscalls.master). 
 
-The [`write`](https://en.wikipedia.org/wiki/Write_(system_call)) syscall takes 3 arguments: the file handle, a pointer to the message to be written, and the number of bytes to write of that message. The Linux and Mac syscall ABI follows the ["diane's silk dress costs $89" mnemonic](https://csappbook.blogspot.com/2015/08/dianes-silk-dress-costs-89.html), meaning we pass in arguments in the order `rdi`, `rsi`, `rdx`, `rcx`, `r8`, and `r9`. Here we only have 3 arguments, so we just need to use the first 3 registers.
+The [`write`](https://en.wikipedia.org/wiki/Write_(system_call)) syscall takes 3 arguments: the file handle, a pointer to the message to be written, and the number of bytes to write of that message. The Linux and Mac syscall ABI follow the ["diane's silk dress costs $89" mnemonic](https://csappbook.blogspot.com/2015/08/dianes-silk-dress-costs-89.html), meaning we pass in arguments in the order `rdi`, `rsi`, `rdx`, `rcx`, `r8`, and `r9`. Here we only have 3 arguments, so we just need to use the first 3 registers.
 
 ```asm
 ; select the write syscall on Linux
@@ -636,98 +636,6 @@ Hello World!
 ```
 
 It works!
-
-Here's the full code for this section:
-
-```rust
-fn main() {
-    let instructions = parse_instructions(b"++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
-
-    let mut asm = String::new();
-
-    // nasm setup
-    asm += "\
-%use masm
-
-BITS 64
-
-section .data
-
-data_buffer: db 30000 dup (0)
-
-section .text
-
-global _start
-
-_start:
-mov rbx, data_buffer
-";
-
-    let mut label_count = 0;
-    let mut labels = Vec::new();
-
-    for inst in instructions {
-        match inst {
-            Instruction::AngleGt => asm += "add rbx, 1\n",
-            Instruction::AngleLt => asm += "sub rbx, 1\n",
-            Instruction::Plus => asm += "add BYTE PTR [rbx], 1\n",
-            Instruction::Minus => asm += "sub BYTE PTR [rbx], 1\n",
-            Instruction::Dot => {
-                asm += "\
-                    mov rax, 1\n\
-                    mov rdi, 1\n\
-                    mov rsi, rbx\n\
-                    mov edx, 1\n\
-                    syscall\n\
-                ";
-            }
-            Instruction::Comma => {
-                asm += "\
-                    mov rax, 0\n\
-                    mov rdi, 0\n\
-                    mov rsi, rbx\n\
-                    mov edx, 1\n\
-                    syscall\n\
-                "
-            }
-            Instruction::BracketOpen(..) => {
-                let loop_idx = label_count;
-                label_count += 1;
-
-                asm += &format!(
-                    "\
-                    cmp BYTE PTR [rbx], 0\n\
-                    je loop{loop_idx}_close\n\
-                    loop{loop_idx}_open:\n\
-                "
-                );
-
-                labels.push(loop_idx);
-            }
-            Instruction::BracketClose(..) => {
-                let loop_idx = labels.pop().unwrap();
-
-                asm += &format!(
-                    "\
-                    cmp BYTE PTR [rbx], 0\n\
-                    jne loop{loop_idx}_open\n\
-                    loop{loop_idx}_close:\n\
-                "
-                );
-            }
-        }
-    }
-
-    // prologue
-    asm += "\
-        mov rax, 60\n\
-        xor rdi, rdi\n\
-        syscall\n\
-    ";
-
-    println!("{asm}");
-}
-```
 
 ### Compiler Optimizations
 
