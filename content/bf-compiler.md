@@ -1,5 +1,5 @@
 +++
-title = "Writing an x86 Compiler for Brainfuck"
+title = "Writing an x86_64 Compiler for Brainfuck"
 +++
 
 Brainfuck is a programming language which, as the name might suggest, was designed to fuck with your brain. Brainfuck programs consist of only 8 characters: `+-><[],.`. All other characters in a `.bf` file are ignored by the language. Here's what a simple "hello, world" program looks like in BF:
@@ -377,7 +377,7 @@ This is way simpler than traversing all the instructions to find the matching in
 
 ## Writing a Compiler
 
-A compiler is a program that takes a programming language and compiles it to some sort of assembly. Compilers for modern programming languages are huge and involve insane optimizations and complex type systems. We won't be worrying about any of that. Our first compiler is going to be as simple as possible.
+A compiler is a program that takes a programming language and compiles it to some sort of lower level language. Compilers for modern programming languages are huge and involve insane optimizations and complex type systems. We won't be worrying about any of that. Our first compiler is going to be as simple as possible.
 
 What exactly are we compiling our program to?
 
