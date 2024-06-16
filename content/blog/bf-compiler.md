@@ -4,7 +4,9 @@ date = "2024-04-20"
 aliases = ["/bf-compiler"]
 +++
 
-Brainfuck is a programming language which, as the name might suggest, was designed to fuck with your brain. Brainfuck programs consist of only 8 characters: `+-><[],.`. All other characters in a `.bf` file are ignored by the language. Here's what a simple "hello, world" program looks like in BF:
+<!-- opener is millennial -->
+
+[Brainfuck](https://esolangs.org/wiki/bf) is a programming language which, as the name might suggest, was designed to be confusing. Brainfuck programs consist of only 8 characters: `+-><[],.`. All other characters in a `.bf` file are ignored by the language. Here's what a simple "hello, world" program looks like in BF:
 
 ```brainfuck
 ++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.
@@ -928,3 +930,12 @@ mov edx, 1
 ```
 
 [^1]: the code linked only finds the primes up to 30, but can be easily modified to find up to 255
+
+<!-- https://cs.lmu.edu/~ray/notes/nasmtutorial/ -->
+<!-- http://www.unixwiz.net/techtips/x86-jumps.html -->
+<!-- https://defuse.ca/online-x86-assembler.htm#disassembly2 -->
+<!-- https://dotink.co/posts/elf/ -->
+<!-- https://stackoverflow.com/questions/1135679/does-using-xor-reg-reg-give-advantage-over-mov-reg-0 -->
+<!-- https://unix.stackexchange.com/questions/588240/what-mandates-the-start-entrypoint-kernel-ld-linux-so-etc -->
+<!-- https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/ -->
+<!-- https://www.mikeash.com/pyblog/friday-qa-2012-11-30-lets-build-a-mach-o-executable.html -->
