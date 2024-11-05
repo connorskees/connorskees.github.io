@@ -3,7 +3,9 @@ title = "Using Python for Leetcode"
 date = "2024-11-03"
 +++
 
-After using lots of languages for doing interviews, I've landed on python. I think python offers a lot of niceties when doing leetcode problems which other languages lack.
+I've done a lot of interviews in a lot of different programming languages. After many years, I've decided that python is the best language for interviewing, and I would even go so far as to say that it's worth learning python even if only for interviewing.
+
+Python is a lingua franca almost on the same tier as JavaScript, but has a much more robust standard library and set of syntactic sugar that makes it far easier to use when solving leetcode/interview problems. Some solutions can be a bit "magic," but in general are more readily understood by interviewers and lend themselves to being elegant and reading pretty close to English.
 
 Below are some assorted tips to make python leetcode solutions nicer.
 
@@ -175,6 +177,36 @@ s[-2:] # "45"
 ```
 
 You can also use negative slicing to iterate in reverse. `s[::-1]` will actually reverse the string to make it `"54321"`.
+
+##### Replacing content by slicing
+
+Slicing in python generally creates a new array which is not related to the old one. For example,
+
+```py
+a = [1, 2, 3]
+b = a[:]
+b[0] = 5
+# a => [1, 2, 3]
+# b => [5, 2, 3]
+```
+
+However, if you slice as part of the left hand side of an assignment, you can replace that slice with a new iterable. A pretty powerful aspect of this functionality is that the iterable being used to replace part of the original array doesn't need to be of the same length.
+
+Here's an example of how you might reverse only the inner part of an array
+
+```py
+arr = [1, 2, 3, 4, 5]
+arr[1:-1] = reversed(arr[1:-1])
+# arr => [1, 4, 3, 2, 5]
+```
+
+Or deleting only the inner elements,
+
+```py
+arr = [1, 2, 3, 4, 5]
+arr[1:-1] = []
+# arr => [1, 5]
+```
 
 ### Sorting
 
