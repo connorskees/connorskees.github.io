@@ -46,7 +46,7 @@ for elem in reversed(arr):
 
 ### Comprehensions
 
-Python has syntactic sugar for `filter` and `map` in the form of "list comprehensions". Most people writing python are familiar with comprehensions, but that are some interesting applications that some may not know about.
+Python has syntactic sugar for `filter` and `map` in the form of "list comprehensions." Most people writing python are familiar with comprehensions, but there are some interesting applications that some may not know about.
 
 ##### Use list comprehensions instead of `map(..)`
 
@@ -66,7 +66,7 @@ List comprehensions also support filtering with the `if` keyword at the end. A s
 arr = [elem for elem in arr if elem % 2 == 0]
 ```
 
-Filtering and mapping can be combined in arbitrary ways.
+Filtering and mapping can be combined to create arbitrarily complex expressions, though generally if your comprehension starts spanning over multiple lines, it might be good to split it up into multiple operations.
 
 ##### Set and dict comprehensions
 
@@ -86,7 +86,9 @@ unique_even_elems = { elem for elem in arr if elem % 2 == 0 }
 
 ##### You can also create generators from comprehensions
 
-Though generator comprehensions are less useful in leetcode problems. Generators are lazy and will only yield elements when called explicitly. This tends not to matter too much in interviews, but can be useful to 1. save characters when typing and 2. show off your knowledge of python and performance
+Though, generator comprehensions are less useful in leetcode problems.
+
+Generators are lazy and will only yield elements when called explicitly. This tends not to matter too much in interviews, but can be useful to 1. save characters when typing and 2. show off your knowledge of python and performance
 
 A generator expression uses parens instead of square brackets. 
 
@@ -126,7 +128,7 @@ Lists have a similar behavior, and can be multiplied to duplicate the contents.
 ["a"] * 5 => ["a", "a", "a", "a", "a"]
 ```
 
-_Use caution when multiplying lists with objects_. List multiplication does _not_ copy the objects they contain. This means that something like `[[]] * 5` will not create 5 new lists, but rather create 5 new pointers pointing to the same underlying object. This is more clear with an example:
+_Use caution when multiplying lists which contain objects_. List multiplication does _not_ copy the objects they contain. This means that something like `[[]] * 5` will not create 5 new lists, but rather create 5 new pointers pointing to the same underlying object. This is more clear with an example:
 
 ```py
 arr = [[]] * 5 # [[], [], [], [], []]
@@ -142,12 +144,18 @@ The workaround for this behavior is to use a list comprehension,
 arr = [[] for _ in range(5)]
 ```
 
+This can come up frequently in 2d array problems where you want to initialize a starting grid with each cell having a value like `0`.
+
+```py
+grid = [[0] * width for _ in range(height)]
+```
+
 ### Indexing
 
 ##### Slice ranges from lists and strings
 
 
-This is another pretty basic python feature. You can slice the start and ends of lists and strings using the syntax `[start:end:step]`. All elements are optional. If not specified the values are `0`, `len(s)`, and `1` (no step)
+This is another pretty basic python feature. You can slice the start and ends of lists and strings using the syntax `[start:end:step]`. All elements are optional. If not specified the values are `0`, `len(arr)`, and `1` (meaning no step/a contiguous range)
 
 ```py
 s = "12345"
@@ -371,9 +379,11 @@ A less interesting collection, also from the `collections` module. This is a sta
 
 For example, `Counter("aabc") + Counter("abd")` would give us `{ "a": 3, "b": 2, "c": 1, "d": 1 }`.
 
+I've used this in interviews to, for example, compute the most frequent character in a string and to compute the number of characters that would need to be inserted into two strings to make them equal.
+
 ##### Hashing with tuples
 
-In python, lists and other objects can't be used as keys to hash maps/sets. This can be pretty annoying when trying to deduplicate lists or other common operations involving hash maps.
+In python, lists and other objects can't be used as keys to hash maps/sets. This can be pretty annoying when trying to deduplicate lists or other common operations involving hash maps, like creating a cache over a 2d grid using `[x, y]` coords.
 
 Tuples, however, _can_ be used as keys to hash maps/sets. Converting a list to a tuple is pretty simple: `tuple(arr)`.
 
@@ -381,7 +391,14 @@ Tuples, however, _can_ be used as keys to hash maps/sets. Converting a list to a
 
 The `heapq` module allows you to rearrange the elements in an array such that they are ordered like a binary heap. This doesn't change the class of the list, it only changes the order of elements.
 
-To convert to a heap, `heapq.heapify(arr)` will modify the array in place so that it can be used as a heap.
+To convert to a heap, `heapq.heapify(arr)` will modify the array in place so that it can be used as a heap. Remember that you don't need to do this if the array is empty or only contains a single element. Sometimes I see code that looks like this,
+
+```py
+heap = []
+heapq.heapify(heap)
+```
+
+which is entirely superfluous.
 
 A cool trick is that the smallest value will be at `arr[0]`, so you can peek at this value without popping.
 
@@ -427,9 +444,9 @@ You also tend to get bonus points from interviewers for mentioning the potential
 
 ##### Reminding yourself with static types
 
-Modern versions of python support pretty robust optional static typing. These types are ignored at runtime, but can be useful if you're coming from a strongly-typed language for helping to lay out your thoughts. Writing down the function signature and noting that it returns an int or a bool or an array can be really helpful in not getting off track and returning the wrong value. For example if the function asks for the top 2 values, but you misread it and go to return only the max value, the interviewer would be able to stop you when you confirm the return type of `int` rather than `List[int]`/`tuple[int, int]`.
+Modern versions of python support pretty robust optional static typing. These types are ignored at runtime, but can be useful if you're coming from a strongly-typed language for helping to lay out your thoughts. Writing down the function signature and noting that it returns an int or a bool or an array can be really helpful in not getting off track and returning the wrong value. For example if the function asks for the top 2 values, but you misread it and go to return only the max value, the interviewer would be able to stop you when you confirm the return type of `int` rather than `list[int]`/`tuple[int, int]`.
 
-Using static types in python also generally tends to impress interviewers, and demonstrates a good understanding of the language.
+Using static types in python also generally tends to impress interviewers, and demonstrates a good understanding of the language. Python static typing supports pretty complex behavior like generics, literals, and dependent types, but generally just knowing the how to type the base builtin types like `str`, `int`, `list[..]`, `tuple[..]`, and `dict[..]` is more than enough.
 
 ##### Sentinel values with `math.inf`
 
