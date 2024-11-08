@@ -235,7 +235,7 @@ I also want to give a special shoutout to sorting by len, `sorted(arr, key=len)`
 
 ##### Sorting in reverse
 
-`sorted(..)` also takes a `reversed` parameter, which can invert the sort. `sorted(arr, reversed=True)`. This can be combined with a key function. 
+`sorted(..)` also takes a `reverse` parameter, which can invert the sort. `sorted(arr, reverse=True)`. This can be combined with a key function. Keep in mind this parameter has a different name from the builtin function
 
 ##### Sorting with a custom comparison function
 
