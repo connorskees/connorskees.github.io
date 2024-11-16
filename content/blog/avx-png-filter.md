@@ -26,7 +26,7 @@ When applying filters, the minimum bytes per pixel used is 1, even if the number
 
 Filters are applied for every byte, regardless of bit depth. This means that if the number of bits per channel is greater than a full byte, we operate on the bytes of that channel separately.
 
-#### The PNG Filters
+## The PNG Filters
 
 There are 5 filters — none, up, sub, average, and paeth. Each filter applies a certain operation to a row of bytes. We'll walk through a simple explanation of the first 3, but we won't talk about the `average` or `paeth` filters. They're pretty interesting, but the rest of this post will focus on the `sub` filter, so we don't need to worry about understanding how they work.
 
@@ -106,7 +106,7 @@ Based on my non-scientific look at a number of images on Wikimedia Commons, the 
 
 To decode any of these filters, you just have to add to the filtered value, rather than subtract from the raw value.
 
-#### Implementing the `sub` Filter
+## Implementing the `sub` Filter
 
 This is all just required background reading to understand what we're really interested in: optimizing the `sub` filter for 8-bit RGBA pixels. Although we introduced the filters by discussing how they're encoded, for the rest of this post we'll only be talking about how they're decoded.
 
@@ -413,7 +413,7 @@ test tests::bench_sub_no_bound_checks ... bench:      86,584 ns/iter (+/- 1,374)
 
 Our initial implementations don't actually seem to be _that_ bad. But there's probably a lot of room for improvement here.
 
-#### Current State of the Art
+## Current State of the Art
 
 `libpng` has had optimized filter implementations using explicit SIMD for [close to a decade](https://github.com/glennrp/libpng/pull/88).
 
@@ -508,7 +508,7 @@ test tests::bench_sub_sse2            ... bench:      86,573 ns/iter (+/- 1,004)
 
 Pretty much no improvement. We saw previously that LLVM was able to autovectorize our loop to operate on 4 bytes at a time already, so this is likely the explanation for why our explicit SIMD implementation isn't too much faster. It could be that we missed something in porting the C code, but that seems unlikely here. In general, it doesn't seem that we can get a massive win if we're stuck operating on `bpp` bytes at a time.
 
-#### Trying a Different Algorithm
+## Trying a Different Algorithm
 
 About a year ago, I had the idea to try solving the PNG filters using AVX and AVX2. AVX enables us to operate on 32 bytes at a time, compared to our current implementation that operates on at most 4 bytes at a time. If we're able to use AVX registers and instructions, we'd be able to operate on 8x the number of bytes as existing implementations of the filters.
 
@@ -714,7 +714,7 @@ test tests::bench_sub_sse_prefix_sum_no_extract ... bench:      69,864 ns/iter (
 
 It's a lot faster! We're approaching the speed of `memcpy`. With this new algorithm, we can go ~25% faster than a naive approach operating on only 4 bytes at a time. It seems hard to improve on this further — at some point we'll be bound by memory. As a proof of concept for this algorithm, I think this works quite well. It may be possible to improve on this by making better use of AVX intrinsics, but for right now it's likely not worth the effort to optimize this further.
 
-#### Impact of this research
+## Impact of this research
 
 The goal up to this point has largely been to demonstrate that this algorithm can improve the performance of PNG decoding. The work demonstrated here is a proof-of-concept and doesn't contain a production-ready implementation.
 

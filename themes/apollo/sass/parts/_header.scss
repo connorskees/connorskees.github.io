@@ -73,43 +73,54 @@ header .main {
 }
 
 h1,
+h2 {
+  border-bottom: 1px solid rgba(61, 68, 77, 0.7);
+  padding-bottom: 7.2px;
+}
+
+h1 {
+  font-size: 32px;
+}
+
+h2 {
+  font-size: 24px;
+}
+
+h3 {
+  font-size: 20px;
+}
+
+h4 {
+  font-size: 16px;
+}
+
+h5 {
+  font-size: 14px;
+}
+
+h6 {
+  font-size: 13.6px;
+}
+
+h1,
 h2,
 h3,
 h4,
 h5,
 h6 {
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 16px;
+}
+
+.list-item h1 {
   font-size: 1.2rem;
+  border-bottom: none;
+  margin-block-start: 0.83em;
+  margin-block-end: 0.83em;
   margin-top: 2em;
-}
-
-h1::before {
-  color: var(--primary-color);
-  content: "# ";
-}
-
-h2::before {
-  color: var(--primary-color);
-  content: "## ";
-}
-
-h3::before {
-  color: var(--primary-color);
-  content: "### ";
-}
-
-h4::before {
-  color: var(--primary-color);
-  content: "#### ";
-}
-
-h5::before {
-  color: var(--primary-color);
-  content: "##### ";
-}
-
-h6::before {
-  color: var(--primary-color);
-  content: "###### ";
+  font-weight: initial;
+  padding: 0px;
 }
 
 @media (prefers-color-scheme: dark) {

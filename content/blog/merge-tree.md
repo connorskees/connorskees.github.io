@@ -11,7 +11,7 @@ This document only describes the core merge-tree algorithms and does not touch o
 
 Although in theory a merge-tree need not operate on text, I find it easiest to reason about the core algorithms in the context of text editing, and so much of the higher-level explanation will center around that.
 
-#### Overview
+## Overview
 
 At its simplest, a merge-tree defines the following operations:
 
@@ -98,7 +98,7 @@ The server does the same thing for client B's op, and both client A and client B
 
 This should hopefully start to make a bit of sense, but will become clearer once we talk about the internal representation of the merge-tree and go a bit more in depth on collaboration.
 
-#### Internal Structure
+## Internal Structure
 
 Merge-tree represents a sequence as an ordered series of segments, with individual characters or elements being identified by the combination of a segment index and a character offset into that segment, referred to as "segoff." For example, if we take the string "abcde" and split it into arbitrary segments:
 
@@ -123,7 +123,7 @@ First we see "a" with a length of 1. Then we see "bcd" with a length of 3. Our c
 
 To get the full length of the string, we would traverse all segments like above, summing up their lengths.
 
-#### Adding Basic Collaboration
+## Adding Basic Collaboration
 
 So far we haven't really motivated the reasons behind this array-of-segments structure. To do so, we have to make the segments more useful by adding more bookkeeping.
 
@@ -218,7 +218,7 @@ We can mark this segment removed by setting its removedSeq and removedClientId t
 
 All merge-tree ops follow this same pattern: find the position of an index in the tree and update some bookkeeping. In the case of remove and annotate, we change the properties of all the segments in a given range. In the case of insertion, we go to the insertion index, split the segment at that index if necessary, and do a tree insertion.
 
-#### Local Edits
+## Local Edits
 
 If the merge-tree had to wait for an ack from the server every time it made a change, users would more than likely see very high latency between the op for the change being sent and the change being represented in the merge-tree. Especially in the case of multiple users editing the same merge-tree at once, seeing the results of a single edit might mean we need to process 100 ops from other clients before getting to our own.
 
@@ -234,13 +234,13 @@ On ack, we are given a proper sequence number for a given local op. We must then
 
 In practice the merge-tree does additional bookkeeping to associate segments with local ops so that it does not need to traverse the entire tree to identify segments associated with a localSeq, but rather can just look the segments up in a dictionary and modify them all at once.
 
-#### Reconnect and Rebasing
+## Reconnect and Rebasing
 
 Sometimes users go offline but continue making edits. In this scenario, if the user comes back online we don't want to just throw away all the changes a user made while they were disconnected.
 
 The solution for this in merge-tree is to rebase and resubmit all the operations that were created while offline. "Rebase" here is much like the rebasing you may be familiar with in git. We must first apply all the operations that were submitted by other clients while disconnected, updating the ops _we_ submitted while doing so. Then, once these ops have been processed, we can resubmit our ops and hopefully preserve the offline changes.
 
-#### Zamboni
+## Zamboni
 
 Over time, the merge-tree gets filled with a lot of cruft. This comes in two forms: tombstoned segments and fragmentation.
 
@@ -270,7 +270,7 @@ There is a small caveat today that zamboni is less effective (perhaps aggressive
 
 It should also be noted that the size (number of ops) of the collab window has a big impact on the performance of the merge-tree. Not only does a large collab window result in a lot of cruft that is unable to be cleaned up, there are a number of merge-tree algorithms that are O($$n^2$$) relative to the size of the collab window. Partial lengths updating, which we discuss below, is an example of such an algorithm.
 
-#### Partial Lengths
+## Partial Lengths
 
 **Partial lengths** are an optimization for quickly and efficiently calculating range length queries. Where a merge-tree is like a B+ tree that can represent many states simultaneously, I like to think of partial lengths as a similar structure based on [segment trees].
 
@@ -296,7 +296,10 @@ TODO
 
 ##### Incremental Updates -->
 
-#### Markers
+
+<!-- #### Obliterate -->
+
+## Markers
 
 Merge-trees are not limited to working with text, and can support any kind of user-defined segment.
 
@@ -306,7 +309,7 @@ This acceleration is implemented by keeping a sort of doubly linked list-like da
 
 In the code today, this behavior is more generic than just applying to markers, with segments having this behavior being called "**tiles**." In practice, this behavior only applies to markers as of writing.
 
-#### Reference Positions
+## Reference Positions
 
 Reference positions are similar to having pointers to individual characters in a string. As the contents of the string change, and the integer position of the character shifts around, the reference position will always point to the same character.
 
@@ -316,7 +319,7 @@ Reference positions are used to implement intervals, with the start and end posi
 
 There is quite a bit of [existing writing about reference positions], so I will not talk too much about the different reference types or the core algorithms here.
 
-##### Local Reference Positions
+### Local Reference Positions
 
 The concept of a reference position is an abstract interface that could in theory be implemented by a number of different structures to achieve myriad functionality.
 
@@ -326,7 +329,7 @@ In practice, there is only one kind of reference position[^2]: a local reference
 
 For use in intervals, the interval collection manages sending the position of local references to other clients and recreating such references locally when changes are received from other clients.
 
-#### Ordinals
+## Ordinals
 
 Sometimes it's useful to be able to compare two segments and quickly determine the ordering of their position in the tree. For example, if you have a list of random segments and want to quickly sort them by their position in the tree.
 
@@ -354,7 +357,7 @@ TODO -->
 
 TODO -->
 
-#### Summarization
+## Summarization
 
 **Summarization** is the process by which the merge-tree is serialized so that it can be loaded later. 
 
@@ -372,7 +375,7 @@ The SharedString data structure makes use of the "legacy" format, while the Shar
 
 There isn't a large reason to prefer one format over the other, and the distinction is largely for legacy reasons. Although one format is called "legacy," both formats are in active use and are supported -- the "legacy" name is a bit of a misnomer.
 
-#### Aside: What is a B-tree?
+## Aside: What is a B-tree?
 
 B-trees and B+trees are admittedly more-niche data structures, so I think it may be helpful to quickly describe what they are. That the merge-tree is a B+tree is very much an implementation detail, and so it is not critical to understand these algorithms, but it may make some of the inner workings more clear.
 
@@ -384,7 +387,7 @@ A B+tree is a B-tree that does not store values in non-leaf nodes. So in a B+tre
 
 So merge-tree is a binary search tree where at each node there is either an array of pointers to child nodes, or in the case of leaf nodes there is an array of segments, as we described above.
 
-#### Review and Glossary
+## Review and Glossary
 
 The below is a quick summary of the vocabulary terms which are discussed in more detail above.
 
