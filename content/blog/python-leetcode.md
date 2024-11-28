@@ -335,7 +335,6 @@ combined = dict(zip(keys, values)) # { 0: "a", 1: "b", 2: "c" }
 
 Python sets support unioning and intersecting using `|` and `&` respectively. 
 
-
 ```py
 set([1]) | set([2]) # { 1, 2 }
 set([1]) & set([1, 2]) # { 1 }
@@ -345,8 +344,16 @@ It's also possible to take the union of two dictionaries this way, though you ca
 
 ### Difference of sets
 
+Sets also support computing the difference with subtraction, and the symmetric difference with `^` (xor). If you subtract set `a` by set `b`, all elements in `b` will be removed from `a`. And if you xor `a` and `b`, you'll get a set which contains the elements that are only in _either_ `a` or `b` but not both:
 
-Sets also support computing the difference with subtraction
+```py
+a = { 1, 2, 3 }
+b = { 2, 3, 4 }
+
+a - b # { 1 }
+b - a # { 4 }
+a ^ b # { 1, 4 }
+```
 
 ### `defaultdict`
 
@@ -417,6 +424,8 @@ Python's standard library contains utilities for doing binary search, so you don
 
 `bisect.bisect_left(arr, elem)` will return the leftmost index of the elem in the arr if it exists, and otherwise will return the index of where the element should go. There's also `bisect.bisect_right(..)` which will return the position to the right of the rightmost element in the arr if it exists, and otherwise has the same behavior as `bisect_left`. Usually `bisect_left` is what you want.
 
+`bisect.bisect_left` also supports a `key=` argument, in the same way that sorting does.
+
 ### Easy memoization with `@functools.cache` and `@functools.lru_cache`
 
 Caching is a pretty common pattern in dynamic programming problems. You have a function which gets called recusively with some parameters, and a cache hashmap which you insert the parameter and return value into.
@@ -444,6 +453,21 @@ def is_even(n: int) -> bool:
 Note that `maxsize` doesn't have an underscore.
 
 You also tend to get bonus points from interviewers for mentioning the potentially bad memory consequences of using `@cache`. 
+
+### Prefix sum 1-liner
+
+There are a bunch of ways in python to compute the prefix sum of an array. If you want to save on characters: `prefix_sum = [0, *itertools.accumulate(nums)]`.
+
+Otherwise, I often do:
+
+```py
+prefix_sum = [0]
+
+for num in nums:
+    prefix_sum.append(prefix_sum[-1] + num)
+```
+
+I think both work fine, and I may lean towards the latter during an interview.
 
 ## Misc Tips
 
