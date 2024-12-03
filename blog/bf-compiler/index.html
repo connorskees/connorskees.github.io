@@ -1,0 +1,662 @@
+<!doctype html><html><head><meta charset=UTF-8><meta content="IE=edge" http-equiv=X-UA-Compatible><meta content="width=device-width,initial-scale=1.0" name=viewport><title> Writing an x86_64 Compiler for Brainfuck </title><link href=https://connorskees.github.io/fonts.css rel=stylesheet><link href=https://connorskees.github.io/atom.xml rel=alternate type=application/atom+xml><link href=https://connorskees.github.io/theme/light.css rel=stylesheet><link href=https://fonts.googleapis.com rel=preconnect><link href=https://fonts.gstatic.com rel=preconnect><link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap" rel=stylesheet><link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500&display=swap" rel=stylesheet><link href=https://connorskees.github.io/override.css rel=stylesheet><link href=https://connorskees.github.io/main.css media=screen rel=stylesheet><link crossorigin=anonymous href=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css integrity=sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0 rel=stylesheet><script crossorigin=anonymous defer integrity=sha384-PwRUT/YqbnEjkZO0zZxNqcxACrXe+j766U2amXcgMg5457rve2Y7I6ZJSm2A0mS4 src=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js></script><script onload="renderMathInElement(document.body, { delimiters: [
+                {left: '$$', right: '$$', display: false},
+            ] });" crossorigin=anonymous defer integrity=sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05 src=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js></script><body><script src="https://www.googletagmanager.com/gtag/js?id=G-R0T6WNHCFH" async></script><script>window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-R0T6WNHCFH');</script><div class=content><header><div class=main><a href=https://connorskees.github.io></a><div class=socials><a class=social href=https://github.com/connorskees/> <object alt=github data=/social_icons/github.svg height=24 type=image/svg+xml width=24></object> </a></div></div><nav><a style="margin-left: 0.7em" href=/>Home</a></nav></header><main><article><div class=title><div class=page-header>Writing an x86_64 Compiler for Brainfuck</div><div class=meta>Posted on <time>2024-04-20</time></div></div><section class=body><p><a href=https://esolangs.org/wiki/bf>Brainfuck</a> is a programming language which, as the name might suggest, was designed to be confusing. Brainfuck programs consist of only 8 characters: <code>+-><[],.</code>. All other characters in a <code>.bf</code> file are ignored by the language. Here's what a simple "hello, world" program looks like in BF:<pre class=language-brainfuck data-lang=brainfuck style=background-color:#0f1419;color:#bfbab0;><code class=language-brainfuck data-lang=brainfuck><span>++++++++[>++++[>++>+++>+++>+<<<&LT-]>+>+>->>+[<]&LT-]>>.>---.+++++++..+++.>>.&LT-.<.+++.------.--------.>>+.>++.
+</span></code></pre><p>BF has two pointers, one for instructions and one for data. The data pointer points somewhere inside a contiguous block of memory, and the instruction pointer points to the instruction currently being executed.<p>The BF operators have these semantics:<ul><li><code>></code>: increment the data pointer by 1<li><code><</code>: decrement the data pointer by 1<li><code>+</code>: increment the value pointed to by the data pointer by 1<li><code>-</code>: decrement the value pointed to by the data pointer by 1<li><code>.</code>: print the value pointed to by the data pointer<li><code>,</code>: read a single byte from stdin and store it at the position pointed to by the data pointer<li><code>[</code>: if the value pointed to by the data pointer is 0, then jump to the instruction after a matching <code>]</code>. otherwise continue<li><code>]</code>: if the value pointed to by the data pointer is <em>not</em> 0, then jump to the instruction after a matching <code>[</code>. otherwise continue</ul><p>These 8 operators are technically enough to make BF turing complete, though doing even simple tasks involves a massive number of characters and it quickly becomes hard to reason about programs.<p>BF lacks types, variables, functions, and even idioms for doing things like multiplication, which makes it very hard to write. <em>But</em> conversely, this makes it very easy to write an implementation. We can skip things like parsing and typechecking, and just go straight to compilation.<h2 id=writing-a-brainfuck-interpreter>Writing a Brainfuck Interpreter</h2><p>Interpreters are generally easier to write than compilers. You don't need to know assembly or any complex compiler algorithms — you just need to know the semantics of your operation and you can implement it in whatever language you want. We'll start by writing a simple BF interpreter to get a sense of BF's semantics, and also so that we have something to compare our compiler to.<p>The first thing we need to do for our interpreter is initialize the data and the instruction buffers. This is actually not that dissimilar to how your operating system loads executable files.<p>Our data buffer is just an array of 8-bit bytes called "cells." In brainfuck we have to provide the language with at least 30,000 cells, though we could go much higher than that if we wanted to.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>let mut</span><span> data_buffer </span><span style=color:#f29668;>= </span><span style=color:#f07178;>vec!</span><span>[</span><span style=color:#f29718;>0_</span><span style=color:#ff7733;>u8</span><span style=color:#bfbab0cc;>; </span><span style=color:#f29718;>30_000</span><span>]</span><span style=color:#bfbab0cc;>;
+</span></code></pre><p>For the instruction buffer, let's start with just hardcoding the instructions, and then later, if we want to, we can support things like reading from files.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=font-style:italic;color:#5c6773;>// hello, world
+</span><span style=color:#ff7733;>let</span><span> instruction_buffer </span><span style=color:#f29668;>= </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>"++++++++[>++++[>++>+++>+++>+<<<&LT-]>+>+>->>+[<]&LT-]>>.>---.+++++++..+++.>>.&LT-.<.+++.------.--------.>>+.>++."</span><span style=color:#bfbab0cc;>;
+</span></code></pre><p>We also need to initialize our data and instruction pointers.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>let mut</span><span> data_ptr </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0_</span><span style=color:#ff7733;>usize</span><span style=color:#bfbab0cc;>;
+</span><span style=color:#ff7733;>let mut</span><span> instruction_ptr </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0_</span><span style=color:#ff7733;>usize</span><span style=color:#bfbab0cc;>;
+</span></code></pre><p>The concept of an instruction pointer might sound similar if you already know a bit of assembly. In x86 this is the rip/eip/ip register.<p>Now that we have our buffers and pointers initialized, we can start writing our interpreter loop. Our program executes until the instruction pointer reaches the end of our instructions.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>while</span><span> instruction_ptr </span><span style=color:#f29668;><</span><span> instruction_buffer</span><span style=color:#f29668;>.</span><span style=color:#f07178;>len</span><span>() {
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// ...
+</span><span>}
+</span></code></pre><p>Then we can start implementing the functionality inside our loop,<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>match</span><span> instruction_buffer[instruction_ptr] {
+</span><span>    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'>' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>todo!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'<' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>todo!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>todo!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>todo!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'.' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>todo!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>',' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>todo!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>todo!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>']' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>todo!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=color:#f29668;>_ => </span><span>{}</span><span style=color:#bfbab0cc;>,
+</span><span>}
+</span><span>
+</span><span style=font-style:italic;color:#5c6773;>// after executing each instruction, increment the instruction pointer to the next instruction
+</span><span>instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span></code></pre><p>The first 4 operators are pretty simple.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'>' </span><span style=color:#f29668;>=></span><span> data_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'<' </span><span style=color:#f29668;>=></span><span> data_ptr </span><span style=color:#f29668;>-= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>=></span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=></span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>-= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span></code></pre><p>In the case of <code>+</code> and <code>-</code>, we actually have a small issue. In rust, integer overflow is defined to panic in debug builds. Brainfuck is fine with overflow, and even expects it. To avoid crashes in debug mode, we need our addition and subtraction to be explicitly wrapping.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>=></span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>=</span><span> data_buffer[data_ptr]</span><span style=color:#f29668;>.</span><span style=color:#f07178;>wrapping_add</span><span>(</span><span style=color:#f29718;>1</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=></span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>=</span><span> data_buffer[data_ptr]</span><span style=color:#f29668;>.</span><span style=color:#f07178;>wrapping_sub</span><span>(</span><span style=color:#f29718;>1</span><span>)</span><span style=color:#bfbab0cc;>,
+</span></code></pre><p>Great. Now we can implement <code>.</code> and <code>,</code>.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'.' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>print!</span><span>(</span><span style=color:#c2d94c;>"</span><span style=color:#f29718;>{}</span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>, </span><span style=color:#ff7733;>char</span><span style=color:#f29668;>::</span><span>from(data_buffer[data_ptr]))</span><span style=color:#bfbab0cc;>,
+</span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>',' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>    </span><span style=color:#ff7733;>use </span><span>std</span><span style=color:#f29668;>::</span><span>io</span><span style=color:#f29668;>::</span><span>Read</span><span style=color:#bfbab0cc;>;
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> byte </span><span style=color:#f29668;>= </span><span>[</span><span style=color:#f29718;>0</span><span>]</span><span style=color:#bfbab0cc;>;
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> stdin </span><span style=color:#f29668;>= </span><span>std</span><span style=color:#f29668;>::</span><span>io</span><span style=color:#f29668;>::</span><span>stdin()</span><span style=color:#bfbab0cc;>;
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// read single byte
+</span><span>    stdin</span><span style=color:#f29668;>.</span><span style=color:#f07178;>read_exact</span><span>(</span><span style=color:#f29668;>&</span><span style=color:#ff7733;>mut</span><span> byte)</span><span style=color:#f29668;>.</span><span style=color:#f07178;>unwrap</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// drop rest of line
+</span><span>    stdin</span><span style=color:#f29668;>.</span><span style=color:#f07178;>read_line</span><span>(</span><span style=color:#f29668;>&</span><span style=color:#ff7733;>mut </span><span style=font-style:italic;color:#39bae6;>String</span><span style=color:#f29668;>::</span><span>new())</span><span style=color:#f29668;>.</span><span style=color:#f07178;>unwrap</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// store in memory
+</span><span>    data_buffer[data_ptr] </span><span style=color:#f29668;>=</span><span> byte[</span><span style=color:#f29718;>0</span><span>]</span><span style=color:#bfbab0cc;>;
+</span><span>}
+</span></code></pre><p><code>.</code> just prints a single character to stdout based on the value pointed to by the data ptr. <code>,</code> looks a lot more complicated, but it's basically just doing the same thing in reverse. It reads a single byte from stdin and stores it in memory. The API for doing this in rust is a bit more complicated, because it's not nearly as common as printing.<p>The last two operators are <code>[</code> and <code>]</code>, which are used to implement a form of <code>goto</code>. These instructions allow you to jump to the matching instruction, which is actually very similar to how <a href=https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/Control_flow>control flow works in WebAssembly</a>. There's lot of ways you can implement this, but we'll start with the simplest: loop over the instructions until we find a match.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// point to next instruction
+</span><span>    instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// if the data isn't 0, execute the next instruction. otherwise we need to jump
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// to the matching `]` instruction
+</span><span>    </span><span style=color:#ff7733;>if</span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>!= </span><span style=color:#f29718;>0 </span><span>{
+</span><span>        </span><span style=color:#ff7733;>continue</span><span style=color:#bfbab0cc;>;
+</span><span>    }
+</span><span>
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// we need to find the closing brace matching this one, not just the first
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// closing brace we see
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> num_open_brackets </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>while</span><span> instruction_ptr </span><span style=color:#f29668;><</span><span> instruction_buffer</span><span style=color:#f29668;>.</span><span style=color:#f07178;>len</span><span>() {
+</span><span>        </span><span style=color:#ff7733;>match</span><span> instruction_buffer[instruction_ptr] {
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=></span><span> num_open_brackets </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>']' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// if no open brackets, then we found our match
+</span><span>                </span><span style=color:#ff7733;>if</span><span> num_open_brackets </span><span style=color:#f29668;>== </span><span style=color:#f29718;>0 </span><span>{
+</span><span>                    instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                    </span><span style=color:#ff7733;>break</span><span style=color:#bfbab0cc;>;
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// otherwise, "close" a bracket
+</span><span>                } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>                    num_open_brackets </span><span style=color:#f29668;>-= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                }
+</span><span>            }
+</span><span>            </span><span style=color:#f29668;>_ => </span><span>{}
+</span><span>        }
+</span><span>
+</span><span>        instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>    }
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>continue</span><span style=color:#bfbab0cc;>;
+</span><span>}
+</span></code></pre><p>Here, we either execute the following instruction if <code>data_buffer[data_ptr]</code> is 0, otherwise we jump to the instruction after the matching <code>]</code>. The code for implementing <code>]</code> looks very similar, but we iterate in reverse.<p>Putting everything together:<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>fn </span><span style=color:#ffb454;>main</span><span>() {
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> data_buffer </span><span style=color:#f29668;>= </span><span style=color:#f07178;>vec!</span><span>[</span><span style=color:#f29718;>0_</span><span style=color:#ff7733;>u8</span><span style=color:#bfbab0cc;>; </span><span style=color:#f29718;>30_000</span><span>]</span><span style=color:#bfbab0cc;>;
+</span><span>    </span><span style=color:#ff7733;>let</span><span> instruction_buffer </span><span style=color:#f29668;>= </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>"++++++++[>++++[>++>+++>+++>+<<<&LT-]>+>+>->>+[<]&LT-]>>.>---.+++++++..+++.>>.&LT-.<.+++.------.--------.>>+.>++."</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> data_ptr </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0_</span><span style=color:#ff7733;>usize</span><span style=color:#bfbab0cc;>;
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> instruction_ptr </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0_</span><span style=color:#ff7733;>usize</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>while</span><span> instruction_ptr </span><span style=color:#f29668;><</span><span> instruction_buffer</span><span style=color:#f29668;>.</span><span style=color:#f07178;>len</span><span>() {
+</span><span>        </span><span style=color:#ff7733;>match</span><span> instruction_buffer[instruction_ptr] {
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'>' </span><span style=color:#f29668;>=></span><span> data_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'<' </span><span style=color:#f29668;>=></span><span> data_ptr </span><span style=color:#f29668;>-= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>=></span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>=</span><span> data_buffer[data_ptr]</span><span style=color:#f29668;>.</span><span style=color:#f07178;>wrapping_add</span><span>(</span><span style=color:#f29718;>1</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=></span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>=</span><span> data_buffer[data_ptr]</span><span style=color:#f29668;>.</span><span style=color:#f07178;>wrapping_sub</span><span>(</span><span style=color:#f29718;>1</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'.' </span><span style=color:#f29668;>=> </span><span style=color:#f07178;>print!</span><span>(</span><span style=color:#c2d94c;>"</span><span style=color:#f29718;>{}</span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>, </span><span style=color:#ff7733;>char</span><span style=color:#f29668;>::</span><span>from(data_buffer[data_ptr]))</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>',' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>use </span><span>std</span><span style=color:#f29668;>::</span><span>io</span><span style=color:#f29668;>::</span><span>Read</span><span style=color:#bfbab0cc;>;
+</span><span>                </span><span style=color:#ff7733;>let mut</span><span> byte </span><span style=color:#f29668;>= </span><span>[</span><span style=color:#f29718;>0</span><span>]</span><span style=color:#bfbab0cc;>;
+</span><span>                </span><span style=color:#ff7733;>let mut</span><span> stdin </span><span style=color:#f29668;>= </span><span>std</span><span style=color:#f29668;>::</span><span>io</span><span style=color:#f29668;>::</span><span>stdin()</span><span style=color:#bfbab0cc;>;
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// read single byte
+</span><span>                stdin</span><span style=color:#f29668;>.</span><span style=color:#f07178;>read_exact</span><span>(</span><span style=color:#f29668;>&</span><span style=color:#ff7733;>mut</span><span> byte)</span><span style=color:#f29668;>.</span><span style=color:#f07178;>unwrap</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// drop rest of line
+</span><span>                stdin</span><span style=color:#f29668;>.</span><span style=color:#f07178;>read_line</span><span>(</span><span style=color:#f29668;>&</span><span style=color:#ff7733;>mut </span><span style=font-style:italic;color:#39bae6;>String</span><span style=color:#f29668;>::</span><span>new())</span><span style=color:#f29668;>.</span><span style=color:#f07178;>unwrap</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// store in memory
+</span><span>                data_buffer[data_ptr] </span><span style=color:#f29668;>=</span><span> byte[</span><span style=color:#f29718;>0</span><span>]</span><span style=color:#bfbab0cc;>;
+</span><span>            }
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// point to next instruction
+</span><span>                instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// if the data is 0, execute the next instruction. otherwise we need to jump
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// to the matching `]` instruction
+</span><span>                </span><span style=color:#ff7733;>if</span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>!= </span><span style=color:#f29718;>0 </span><span>{
+</span><span>                    </span><span style=color:#ff7733;>continue</span><span style=color:#bfbab0cc;>;
+</span><span>                }
+</span><span>
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// we need to find the closing brace matching this one, not just the first
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// closing brace we see
+</span><span>                </span><span style=color:#ff7733;>let mut</span><span> num_open_brackets </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>while</span><span> instruction_ptr </span><span style=color:#f29668;><</span><span> instruction_buffer</span><span style=color:#f29668;>.</span><span style=color:#f07178;>len</span><span>() {
+</span><span>                    </span><span style=color:#ff7733;>match</span><span> instruction_buffer[instruction_ptr] {
+</span><span>                        </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=></span><span> num_open_brackets </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                        </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>']' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                            </span><span style=font-style:italic;color:#5c6773;>// if no open brackets, then we found our match
+</span><span>                            </span><span style=color:#ff7733;>if</span><span> num_open_brackets </span><span style=color:#f29668;>== </span><span style=color:#f29718;>0 </span><span>{
+</span><span>                                instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                                </span><span style=color:#ff7733;>break</span><span style=color:#bfbab0cc;>;
+</span><span>                            </span><span style=font-style:italic;color:#5c6773;>// otherwise, "close" a bracket
+</span><span>                            } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>                                num_open_brackets </span><span style=color:#f29668;>-= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                            }
+</span><span>                        }
+</span><span>                        </span><span style=color:#f29668;>_ => </span><span>{}
+</span><span>                    }
+</span><span>
+</span><span>                    instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                }
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>continue</span><span style=color:#bfbab0cc;>;
+</span><span>            }
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>']' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>if</span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>== </span><span style=color:#f29718;>0 </span><span>{
+</span><span>                    instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                    </span><span style=color:#ff7733;>continue</span><span style=color:#bfbab0cc;>;
+</span><span>                }
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>let mut</span><span> num_close_brackets </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                instruction_ptr </span><span style=color:#f29668;>-= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>while</span><span> instruction_ptr </span><span style=color:#f29668;><</span><span> instruction_buffer</span><span style=color:#f29668;>.</span><span style=color:#f07178;>len</span><span>() {
+</span><span>                    </span><span style=color:#ff7733;>match</span><span> instruction_buffer[instruction_ptr] {
+</span><span>                        </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                            </span><span style=font-style:italic;color:#5c6773;>// if no close brackets, then we found our match
+</span><span>                            </span><span style=color:#ff7733;>if</span><span> num_close_brackets </span><span style=color:#f29668;>== </span><span style=color:#f29718;>0 </span><span>{
+</span><span>                                instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                                </span><span style=color:#ff7733;>break</span><span style=color:#bfbab0cc;>;
+</span><span>                            </span><span style=font-style:italic;color:#5c6773;>// otherwise, "close" a bracket
+</span><span>                            } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>                                num_close_brackets </span><span style=color:#f29668;>-= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                            }
+</span><span>                        }
+</span><span>                        </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>']' </span><span style=color:#f29668;>=></span><span> num_close_brackets </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                        </span><span style=color:#f29668;>_ => </span><span>{}
+</span><span>                    }
+</span><span>
+</span><span>                    instruction_ptr </span><span style=color:#f29668;>-= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>                }
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>continue</span><span style=color:#bfbab0cc;>;
+</span><span>            }
+</span><span>
+</span><span>            </span><span style=color:#f29668;>_ => </span><span>{}
+</span><span>        }
+</span><span>
+</span><span>        instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>    }
+</span><span>}
+</span></code></pre><pre class=language-sh data-lang=sh style=background-color:#0f1419;color:#bfbab0;><code class=language-sh data-lang=sh><span style=color:#ffb454;>$</span><span> cargo r</span><span style=color:#f29718;> -q
+</span><span style=color:#ffb454;>Hello</span><span> World!
+</span></code></pre><p>It works! We successfully implemented a brainfuck interpreter.<p>But we have a problem. Our interpreter is super slow. If we try running <a href=https://github.com/pablojorge/brainfuck/blob/master/programs/primes.bf>this program</a> to find all the primes under a given number, it takes way too long.<pre class=language-sh data-lang=sh style=background-color:#0f1419;color:#bfbab0;><code class=language-sh data-lang=sh><span style=color:#ffb454;>$</span><span> cargo b</span><span style=color:#f29718;> --release
+</span><span style=color:#ffb454;>$</span><span> ./target/release/bf
+</span><span style=color:#ffb454;>9
+</span><span style=color:#ffb454;>9
+</span><span>
+</span><span>
+</span><span style=color:#ffb454;>Primes</span><span> up to: 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71 73 79 83 89 97
+</span></code></pre><p>On my machine it takes around 400ms to execute this program if I hard code the input. That's pretty bad!<h2 id=optimizing-and>Optimizing <code>[</code> and <code>]</code></h2><p>Before doing anything more drastic, we can make our implementation of control flow a bit nicer by introducing an intermediate representation.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#bfbab0cc;>#</span><span>[</span><span style=color:#ffb454;>derive</span><span>(Debug</span><span style=color:#bfbab0cc;>,</span><span> Copy</span><span style=color:#bfbab0cc;>,</span><span> Clone)]
+</span><span style=color:#ff7733;>enum </span><span style=color:#59c2ff;>Instruction </span><span>{
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// >
+</span><span>    AngleGt</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// <
+</span><span>    AngleLt</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// +
+</span><span>    Plus</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// -
+</span><span>    Minus</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// .
+</span><span>    Dot</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// ,
+</span><span>    Comma</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// [
+</span><span>    BracketOpen(</span><span style=color:#ff7733;>usize</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// ]
+</span><span>    BracketClose(</span><span style=color:#ff7733;>usize</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>}
+</span></code></pre><p>Then we can write a simple parser to convert the input to this representation.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>fn </span><span style=color:#ffb454;>parse_instructions</span><span>(</span><span style=color:#f29718;>bytes</span><span style=color:#bfbab0cc;>: </span><span style=color:#f29668;>&</span><span>[</span><span style=color:#ff7733;>u8</span><span>]) </span><span style=color:#bfbab0cc;>-> </span><span style=font-style:italic;color:#39bae6;>Vec</span><span>&LTInstruction> {
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> instructions </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>Vec</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> open_idxs </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>Vec</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>for</span><span> b </span><span style=color:#f29668;>in</span><span> bytes {
+</span><span>        </span><span style=color:#ff7733;>match</span><span> b {
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'>' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>AngleGt)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'<' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>AngleLt)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>Plus)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>Minus)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'.' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>Dot)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>',' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>Comma)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>let</span><span> idx </span><span style=color:#f29668;>=</span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>len</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>                open_idxs</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(idx)</span><span style=color:#bfbab0cc;>;
+</span><span>                </span><span style=font-style:italic;color:#5c6773;>// placeholder value to be filled in when we find the matching `]`
+</span><span>                instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>BracketOpen(</span><span style=color:#f29718;>0</span><span>))</span><span style=color:#bfbab0cc;>;
+</span><span>            }</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>']' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>let</span><span> idx </span><span style=color:#f29668;>=</span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>len</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>                </span><span style=color:#ff7733;>let</span><span> matching_brace </span><span style=color:#f29668;>=</span><span> open_idxs</span><span style=color:#f29668;>.</span><span style=color:#f07178;>pop</span><span>()</span><span style=color:#f29668;>.</span><span style=color:#f07178;>unwrap</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>                instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>BracketClose(matching_brace))</span><span style=color:#bfbab0cc;>;
+</span><span>                instructions[matching_brace] </span><span style=color:#f29668;>= </span><span>Instruction</span><span style=color:#f29668;>::</span><span>BracketOpen(idx)</span><span style=color:#bfbab0cc;>;
+</span><span>            }</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#f29668;>_ => </span><span>{}</span><span style=color:#bfbab0cc;>,
+</span><span>        }
+</span><span>    }
+</span><span>
+</span><span>    instructions
+</span><span>}
+</span></code></pre><p>Our match statement looks roughly the same, but the implementation of <code>[</code> and <code>]</code> can become a lot simpler.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>let</span><span> instruction_buffer </span><span style=color:#f29668;>= </span><span style=color:#f07178;>parse_instructions</span><span>(</span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>"++++++++[>++++[>++>+++>+++>+<<<&LT-]>+>+>->>+[<]&LT-]>>.>---.+++++++..+++.>>.&LT-.<.+++.------.--------.>>+.>++."</span><span>)</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span style=font-style:italic;color:#5c6773;>// ...
+</span><span>
+</span><span style=color:#ff7733;>match</span><span> instruction_buffer[instruction_ptr] {
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// ...
+</span><span>    Instruction</span><span style=color:#f29668;>::</span><span>BracketOpen(jmp) </span><span style=color:#f29668;>=> </span><span>{
+</span><span>        </span><span style=color:#ff7733;>if</span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>!= </span><span style=color:#f29718;>0 </span><span>{
+</span><span>            instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>        } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>            instruction_ptr </span><span style=color:#f29668;>=</span><span> jmp </span><span style=color:#f29668;>+ </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>        }
+</span><span>
+</span><span>        </span><span style=color:#ff7733;>continue</span><span style=color:#bfbab0cc;>;
+</span><span>    }
+</span><span>    Instruction</span><span style=color:#f29668;>::</span><span>BracketClose(jmp) </span><span style=color:#f29668;>=> </span><span>{
+</span><span>        </span><span style=color:#ff7733;>if</span><span> data_buffer[data_ptr] </span><span style=color:#f29668;>== </span><span style=color:#f29718;>0 </span><span>{
+</span><span>            instruction_ptr </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>        } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>            instruction_ptr </span><span style=color:#f29668;>=</span><span> jmp </span><span style=color:#f29668;>+ </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>        }
+</span><span>
+</span><span>        </span><span style=color:#ff7733;>continue</span><span style=color:#bfbab0cc;>;
+</span><span>    }
+</span><span>}
+</span></code></pre><p>This is way simpler than traversing all the instructions to find the matching instruction each time. After making this change, our program to find all the primes under 99 takes about 200ms on my machine. 2x faster, but still not enough! We can do better.<h2 id=writing-a-compiler>Writing a Compiler</h2><p>A compiler is a program that takes a programming language and compiles it to some sort of lower level language. Compilers for modern programming languages are huge and involve insane optimizations and complex type systems. We won't be worrying about any of that. Our first compiler is going to be as simple as possible.<p>What exactly are we compiling our program to?<p>Your CPU doesn't understand assembly. It understands machine code. Assembly is roughly the textual representation of machine code, but there are usually a few differences.<p>To convert assembly into machine code your CPU can understand, we need to use an assembler. Then, to create an executable your operating system can run, we need to use a linker.<h3 id=writing-assembly>Writing Assembly</h3><p>We're going to do something a bit hacky. There aren't any good libraries for going from assembly to executable in rust, so we're going to do string concatenation and then run <a href=https://www.nasm.us/><code>nasm</code></a> on the result. <a href=https://docs.rs/iced-x86/latest/iced_x86/><code>iced_x86</code></a> is a great library for assembling and disassembling x86, but has some issues with generating full binaries that make it unsuitable for our purposes here. <code>iced_x86</code> would be a great choice for a JIT compiler.<p>We'll initialize our assembly string like so,<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>let mut</span><span> asm </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>String</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span></code></pre><p>We need to start by setting some <code>nasm</code> boilerplate and creating our entrypoint. By convention the entrypoint to our program is named <code>_start</code> on Linux and <code>start</code> on Mac. I'm compiling this on Linux, so all the code examples below will use the Linux conventions, but I'll mention when there are differences for Mac.<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#f07178;>%use </span><span style=color:#ffb454;>masm
+</span><span>
+</span><span style=color:#f07178;>BITS 64
+</span><span>
+</span><span style=color:#f07178;>section </span><span style=color:#ffb454;>.text
+</span><span>
+</span><span style=color:#f07178;>global </span><span style=color:#ffb454;>_start
+</span><span>
+</span><span style=color:#ffb454;>_start:
+</span></code></pre><p>With that out of the way, how do we translate our interpreter to a compiler?<p>The first thing we want to think about is where to store the data pointer and the instruction pointer.<p>The instruction pointer is pretty easy — x86 already provides us a register called <a href="https://flint.cs.yale.edu/cs421/papers/x86-asm/asm.html#Control-Flow-Instructions:~:text=The%20x86%20processor%20maintains%20an%20instruction%20pointer%20(EIP)%20register%20that%20is%20a%2032%2Dbit%20value%20indicating%20the%20location%20in%20memory%20where%20the%20current%20instruction%20starts"><code>rip</code></a> which is exactly that. Plus, reusing the <code>rip</code> for moving between instructions lets us reuse <code>jmp</code> instructions and labels to do our control flow with <code>[</code> and <code>]</code>.<p>For the data pointer, we can store its value pretty much anywhere. Let's choose <code>rbx</code> since it's not really used by other constructs, like calling functions or syscalls.<p>The next question is, where do we store our data? In our interpreter, we allocate a block of 30,000 bytes in memory and initialize it all to 0. That memory never grows during our program so we'd actually be fine storing it in the data section of our binary. We can initialize that memory in our assembly like this:<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#f07178;>section </span><span style=color:#ffb454;>.data
+</span><span>
+</span><span style=color:#ffb454;>data_buffer: </span><span style=color:#f07178;>db </span><span style=color:#f29718;>30000 </span><span style=color:#ffb454;>dup (</span><span style=color:#f29718;>0</span><span style=color:#ffb454;>)
+</span></code></pre><p>This declares a data section, and then initializes a buffer of 30,000 bytes to 0. We can reference <code>data_buffer</code> just like a label or a variable. The value of <code>data_buffer</code> is just a pointer to our initialized buffer of memory. For simplicity we'll declare this section in our boilerplate at the start, but it could also go anywhere in our program.<p>To start our program, we need to store the pointer to <code>data_buffer</code> in <code>rbx</code>. That's pretty simple: <code>mov rbx, data_buffer</code>.<p>So our actual prelude is:<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#f07178;>%use </span><span style=color:#ffb454;>masm
+</span><span>
+</span><span style=color:#f07178;>BITS 64
+</span><span>
+</span><span style=color:#f07178;>section </span><span style=color:#ffb454;>.data
+</span><span>
+</span><span style=color:#ffb454;>data_buffer: </span><span style=color:#f07178;>db </span><span style=color:#f29718;>30000 </span><span style=color:#ffb454;>dup (</span><span style=color:#f29718;>0</span><span style=color:#ffb454;>)
+</span><span>
+</span><span style=color:#f07178;>section </span><span style=color:#ffb454;>.text
+</span><span>
+</span><span style=color:#f07178;>global </span><span style=color:#ffb454;>_start
+</span><span>
+</span><span style=color:#ffb454;>_start:
+</span><span style=color:#ffb454;>    </span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rbx</span><span>, </span><span style=color:#ffb454;>data_buffer
+</span><span>
+</span><span style=font-style:italic;color:#5c6773;>; the rest of our compiled code
+</span></code></pre><p>Now we've translated our pointers and memory. It's time to start working on the instructions.<p>Like before, we loop through all our instructions.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>fn </span><span style=color:#ffb454;>main</span><span>() {
+</span><span>    </span><span style=color:#ff7733;>let</span><span> instructions </span><span style=color:#f29668;>= </span><span style=color:#f07178;>parse_instructions</span><span>(</span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>"..."</span><span>)</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> asm </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>String</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// ...
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>for</span><span> inst </span><span style=color:#f29668;>in</span><span> instructions {
+</span><span>        </span><span style=color:#ff7733;>match</span><span> inst {
+</span><span>            </span><span style=font-style:italic;color:#5c6773;>// ...
+</span><span>        }
+</span><span>    }
+</span><span>}
+</span></code></pre><p>And just like our interpreter, we can start filling out our match statement.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span>Instruction</span><span style=color:#f29668;>::</span><span>AngleGt </span><span style=color:#f29668;>=></span><span> asm </span><span style=color:#f29668;>+= </span><span style=color:#c2d94c;>"add rbx, 1</span><span style=color:#95e6cb;>\n</span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>,
+</span><span>Instruction</span><span style=color:#f29668;>::</span><span>AngleLt </span><span style=color:#f29668;>=></span><span> asm </span><span style=color:#f29668;>+= </span><span style=color:#c2d94c;>"sub rbx, 1</span><span style=color:#95e6cb;>\n</span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>,
+</span></code></pre><p><code>></code> and <code><</code> increment and decrement the data pointer respectively. Here, <code>rbx</code> holds our data pointer so we modify its value directly.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span>Instruction</span><span style=color:#f29668;>::</span><span>Plus </span><span style=color:#f29668;>=></span><span> asm </span><span style=color:#f29668;>+= </span><span style=color:#c2d94c;>"add BYTE PTR [rbx], 1</span><span style=color:#95e6cb;>\n</span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>,
+</span><span>Instruction</span><span style=color:#f29668;>::</span><span>Minus </span><span style=color:#f29668;>=></span><span> asm </span><span style=color:#f29668;>+= </span><span style=color:#c2d94c;>"sub BYTE PTR [rbx], 1</span><span style=color:#95e6cb;>\n</span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>,
+</span></code></pre><p><code>+</code> and <code>-</code> increment and decrement the value <em>pointed to</em> by <code>rbx</code> respectively. The <code>[rbx]</code> in this syntax is a pointer dereference, so we're not modifying rbx directly, but rather the byte it's pointing to.<p><code>,</code> and <code>.</code> are bit more complicated. They read from stdin and write to stdout respectively. To do that, we need to make syscalls. Syscalls are functions provided to us by the operating system.<p>Syscalls, just like regular function calls in assembly, have specific calling conventions. We store the arguments in registers and execute the <code>syscall</code> instruction. To tell the operating system which syscall we want to make, we set the value in <code>rax</code> to a predefined number. For the <code>write</code> syscall, this number is <a href=https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/>1 on Linux</a> and <code>0x02000004</code> <a href=https://opensource.apple.com/source/xnu/xnu-1504.3.12/bsd/kern/syscalls.master>on Mac</a>.<p>The <a href=https://en.wikipedia.org/wiki/Write_(system_call)><code>write</code></a> syscall takes 3 arguments: the file handle, a pointer to the message to be written, and the number of bytes to write of that message. The Linux and Mac syscall ABI follow the <a href=https://csappbook.blogspot.com/2015/08/dianes-silk-dress-costs-89.html>"diane's silk dress costs $89" mnemonic</a>, meaning we pass in arguments in the order <code>rdi</code>, <code>rsi</code>, <code>rdx</code>, <code>rcx</code>, <code>r8</code>, and <code>r9</code>. Here we only have 3 arguments, so we just need to use the first 3 registers.<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=font-style:italic;color:#5c6773;>; select the write syscall on Linux
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rax</span><span>, </span><span style=color:#f29718;>1
+</span><span style=font-style:italic;color:#5c6773;>; file handle (1 for stdout)
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rdi</span><span>, </span><span style=color:#f29718;>1
+</span><span style=font-style:italic;color:#5c6773;>; pointer to message, which is our data buffer
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rsi</span><span>, </span><span style=color:#f29718;>rbx
+</span><span style=font-style:italic;color:#5c6773;>; number of bytes to write, which is 1
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>edx</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>syscall
+</span></code></pre><p>This is our implementation of <code>.</code>, which prints to stdout. Next we have to do a <a href=https://en.wikipedia.org/wiki/Read_(system_call)>read</a>.<p>The API for read is pretty similar. It takes a file descriptor (0 for stdin), a pointer to somewhere in memory to write, and the number of bytes to read from stdin.<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=font-style:italic;color:#5c6773;>; select the read syscall on Linux
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rax</span><span>, </span><span style=color:#f29718;>0
+</span><span style=font-style:italic;color:#5c6773;>; file handle (0 for stdin)
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rdi</span><span>, </span><span style=color:#f29718;>0
+</span><span style=font-style:italic;color:#5c6773;>; pointer to message, which is our data buffer
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rsi</span><span>, </span><span style=color:#f29718;>rbx
+</span><span style=font-style:italic;color:#5c6773;>; number of bytes to read, which is 1
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>edx</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>syscall
+</span></code></pre><p>Finally we have to compile our control flow instructions, <code>[</code> and <code>]</code>.<p>We're going to compile our loops to look something like this:<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#ffb454;>loop_start:
+</span><span style=font-style:italic;color:#5c6773;>; condition
+</span><span style=color:#ff7733;>jmp </span><span style=color:#ffb454;>loop_end
+</span><span style=font-style:italic;color:#5c6773;>; loop code
+</span><span style=color:#ff7733;>jmp </span><span style=color:#ffb454;>loop_start
+</span><span style=color:#ffb454;>loop_end:
+</span><span style=font-style:italic;color:#5c6773;>; other instructions
+</span></code></pre><p>We have to give each loop label a unique identifier, otherwise their labels would conflict with each other. We can do this pretty simply by keeping a strictly increasing integer which we increment every time we encounter a <code>[</code>. To match our <code>]</code> to <code>[</code>, we can keep a stack, similar to our optimization for matching braces in our interpreter.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>let mut</span><span> label_count </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0</span><span style=color:#bfbab0cc;>;
+</span><span style=color:#ff7733;>let mut</span><span> labels </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>Vec</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span></code></pre><p>And then in our match statement:<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span>Instruction</span><span style=color:#f29668;>::</span><span>BracketOpen(</span><span style=color:#f29668;>..</span><span>) </span><span style=color:#f29668;>=> </span><span>{
+</span><span>    </span><span style=color:#ff7733;>let</span><span> loop_idx </span><span style=color:#f29668;>=</span><span> label_count</span><span style=color:#bfbab0cc;>;
+</span><span>    label_count </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    asm </span><span style=color:#f29668;>+= &</span><span style=color:#f07178;>format!</span><span>(</span><span style=color:#c2d94c;>"
+</span><span style=color:#c2d94c;>        cmp BYTE PTR [rbx], 0
+</span><span style=color:#c2d94c;>        je loop</span><span style=color:#f29718;>{loop_idx}</span><span style=color:#c2d94c;>_close
+</span><span style=color:#c2d94c;>        loop</span><span style=color:#f29718;>{loop_idx}</span><span style=color:#c2d94c;>_open:
+</span><span style=color:#c2d94c;>    "</span><span>)</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    labels</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(loop_idx)</span><span style=color:#bfbab0cc;>;
+</span><span>}
+</span></code></pre><p>In our closing brace code we need to pop off the <code>labels</code> stack and jump to the start.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span>Instruction</span><span style=color:#f29668;>::</span><span>BracketClose(jmp) </span><span style=color:#f29668;>=> </span><span>{
+</span><span>    </span><span style=color:#ff7733;>let</span><span> loop_idx </span><span style=color:#f29668;>=</span><span> labels</span><span style=color:#f29668;>.</span><span style=color:#f07178;>pop</span><span>()</span><span style=color:#f29668;>.</span><span style=color:#f07178;>unwrap</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    asm </span><span style=color:#f29668;>+= &</span><span style=color:#f07178;>format!</span><span>(</span><span style=color:#c2d94c;>"
+</span><span style=color:#c2d94c;>        cmp BYTE PTR [rbx], 0
+</span><span style=color:#c2d94c;>        jne loop</span><span style=color:#f29718;>{loop_idx}</span><span style=color:#c2d94c;>_open
+</span><span style=color:#c2d94c;>        loop</span><span style=color:#f29718;>{loop_idx}</span><span style=color:#c2d94c;>_close:
+</span><span style=color:#c2d94c;>    "</span><span>)</span><span style=color:#bfbab0cc;>;
+</span><span>}
+</span></code></pre><p>And that's it! Now we just have to make our program exit gracefully. It can do that by calling the <code>exit</code> syscall with an error code of 0.<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=font-style:italic;color:#5c6773;>; select the exit syscall on Linux
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rax</span><span>, </span><span style=color:#f29718;>60
+</span><span style=font-style:italic;color:#5c6773;>; set exit code in rdi to 0
+</span><span style=color:#ff7733;>xor </span><span style=color:#f29718;>rdi</span><span>, </span><span style=color:#f29718;>rdi
+</span><span style=color:#ff7733;>syscall
+</span></code></pre><p>That's everything we need to write a compiler for brainfuck. Let's try printing out <code>asm</code> and seeing what the codegen looks like.<pre class=language-sh data-lang=sh style=background-color:#0f1419;color:#bfbab0;><code class=language-sh data-lang=sh><span style=color:#ffb454;>$</span><span> cargo r
+</span></code></pre><pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#f07178;>%use </span><span style=color:#ffb454;>masm
+</span><span>
+</span><span style=color:#f07178;>BITS 64
+</span><span>
+</span><span style=color:#f07178;>section </span><span style=color:#ffb454;>.data
+</span><span>
+</span><span style=color:#ffb454;>data_buffer: </span><span style=color:#f07178;>db </span><span style=color:#f29718;>30000 </span><span style=color:#ffb454;>dup (</span><span style=color:#f29718;>0</span><span style=color:#ffb454;>)
+</span><span>
+</span><span style=color:#f07178;>section </span><span style=color:#ffb454;>.text
+</span><span>
+</span><span style=color:#f07178;>global </span><span style=color:#ffb454;>_start
+</span><span>
+</span><span style=color:#ffb454;>_start:
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rbx</span><span>, </span><span style=color:#ffb454;>data_buffer
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>cmp </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>0
+</span><span style=color:#ff7733;>je </span><span style=color:#ffb454;>loop0_close
+</span><span style=color:#ffb454;>loop0_open:
+</span><span style=color:#ff7733;>add </span><span style=color:#f29718;>rbx</span><span>, </span><span style=color:#f29718;>1
+</span><span>
+</span><span style=font-style:italic;color:#5c6773;>; ... 
+</span><span>
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rax</span><span>, </span><span style=color:#f29718;>60
+</span><span style=color:#ff7733;>xor </span><span style=color:#f29718;>rdi</span><span>, </span><span style=color:#f29718;>rdi
+</span><span style=color:#ff7733;>syscall
+</span></code></pre><p>That looks pretty good to me! We can pipe that to a file and try assembling it with nasm.<pre class=language-sh data-lang=sh style=background-color:#0f1419;color:#bfbab0;><code class=language-sh data-lang=sh><span style=color:#ffb454;>$</span><span> cargo r </span><span style=color:#f29668;>></span><span> hello-world.s
+</span><span style=color:#ffb454;>$</span><span> nasm</span><span style=color:#f29718;> -felf64</span><span> hello-world.s
+</span><span style=color:#ffb454;>$</span><span> ld hello-world.o 
+</span><span style=color:#ffb454;>$</span><span> ./a.out
+</span><span style=color:#ffb454;>Hello</span><span> World!
+</span></code></pre><p>It works!<h3 id=compiler-optimizations>Compiler Optimizations</h3><p>This is pretty good, but we can do better. For a simple hello world we generate over 200 instructions.<p>Our assembly is pretty suboptimal, so we have plenty of room to improve. Take this sample from our assembly:<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>1
+</span></code></pre><p>We have strings of <code>+++++</code> all over our hello world code, to increment the memory to a given character value. These repeated additions by 1 could be simplified into a single addition by a larger number.<p>To start optimizing, we need to change our intermediate representation a bit. Instead of separating out <code><</code>/<code>></code> and <code>+</code>/<code>-</code>, we can combine them in our intermediate representation. <code><</code> and <code>-</code> are just adds by negative numbers.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#bfbab0cc;>#</span><span>[</span><span style=color:#ffb454;>derive</span><span>(Debug</span><span style=color:#bfbab0cc;>,</span><span> Copy</span><span style=color:#bfbab0cc;>,</span><span> Clone)]
+</span><span style=color:#ff7733;>enum </span><span style=color:#59c2ff;>Instruction </span><span>{
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// > and <
+</span><span>    PointerAdd(</span><span style=color:#ff7733;>isize</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// + and -
+</span><span>    ValueAdd(</span><span style=color:#ff7733;>isize</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// .
+</span><span>    Dot</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// ,
+</span><span>    Comma</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// [
+</span><span>    BracketOpen</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// ]
+</span><span>    BracketClose</span><span style=color:#bfbab0cc;>,
+</span><span>}
+</span></code></pre><p>In addition to combining our addition operators, we've added support for arbitrary numbers to <code>+</code>, <code>-</code>, <code>></code>, and <code><</code>. This way we can represent <code>++</code> as <code>Plus(2)</code>. We also removed the offset code from <code>[</code> and <code>]</code>, since that's handled by our compiler now.<p>We can change our parser to support this new representation.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#ff7733;>fn </span><span style=color:#ffb454;>parse_instructions</span><span>(</span><span style=color:#f29718;>bytes</span><span style=color:#bfbab0cc;>: </span><span style=color:#f29668;>&</span><span>[</span><span style=color:#ff7733;>u8</span><span>]) </span><span style=color:#bfbab0cc;>-> </span><span style=font-style:italic;color:#39bae6;>Vec</span><span>&LTInstruction> {
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> instructions </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>Vec</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>for</span><span> b </span><span style=color:#f29668;>in</span><span> bytes {
+</span><span>        </span><span style=color:#ff7733;>match</span><span> b {
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'>' </span><span style=color:#f29668;>| </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'<' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>let</span><span> v </span><span style=color:#f29668;>= </span><span style=color:#ff7733;>match</span><span> b {
+</span><span>                    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'>' </span><span style=color:#f29668;>=> </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'<' </span><span style=color:#f29668;>=> -</span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                    </span><span style=color:#f29668;>_ => </span><span style=color:#f07178;>unreachable!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>                }</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>if let </span><span style=font-style:italic;color:#39bae6;>Some</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>PointerAdd(n2)) </span><span style=color:#f29668;>=</span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>last_mut</span><span>() {
+</span><span>                    </span><span style=color:#f29668;>*</span><span>n2 </span><span style=color:#f29668;>+=</span><span> v</span><span style=color:#bfbab0cc;>;
+</span><span>                } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>                    instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>PointerAdd(v))
+</span><span>                }
+</span><span>            }
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>| </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>let</span><span> v </span><span style=color:#f29668;>= </span><span style=color:#ff7733;>match</span><span> b {
+</span><span>                    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>=> </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=> -</span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                    </span><span style=color:#f29668;>_ => </span><span style=color:#f07178;>unreachable!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>                }</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>if let </span><span style=font-style:italic;color:#39bae6;>Some</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>ValueAdd(n2)) </span><span style=color:#f29668;>=</span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>last_mut</span><span>() {
+</span><span>                    </span><span style=color:#f29668;>*</span><span>n2 </span><span style=color:#f29668;>+=</span><span> v</span><span style=color:#bfbab0cc;>;
+</span><span>                } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>                    instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>ValueAdd(v))
+</span><span>                }
+</span><span>            }
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'.' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>Dot)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>',' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>Comma)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>BracketOpen)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>']' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>BracketClose)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#f29668;>_ => </span><span>{}
+</span><span>        }
+</span><span>    }
+</span><span>
+</span><span>    instructions
+</span><span>}
+</span></code></pre><p>This already makes our assembly a lot nicer.<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#ffb454;>_start:
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rbx</span><span>, </span><span style=color:#ffb454;>data_buffer
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>8
+</span><span style=color:#ff7733;>cmp </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>0
+</span><span style=color:#ff7733;>je </span><span style=color:#ffb454;>loop0_close
+</span><span style=color:#ffb454;>loop0_open:
+</span><span style=color:#ff7733;>add </span><span style=color:#f29718;>rbx</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>4
+</span><span style=color:#ff7733;>cmp </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>0
+</span><span style=color:#ff7733;>je </span><span style=color:#ffb454;>loop1_close
+</span><span style=color:#ffb454;>loop1_open:
+</span><span style=color:#ff7733;>add </span><span style=color:#f29718;>rbx</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>2
+</span><span style=color:#ff7733;>add </span><span style=color:#f29718;>rbx</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rbx</span><span>], </span><span style=color:#f29718;>3
+</span></code></pre><p>There's a couple other low hanging fruit. In our syscalls to read and write, we always set <code>edx</code> to 1, so instead of doing that before each syscall, let's just do it once at the start of our program.<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#f07178;>section </span><span style=color:#ffb454;>.text
+</span><span>
+</span><span style=color:#f07178;>global </span><span style=color:#ffb454;>_start
+</span><span>
+</span><span style=color:#ffb454;>_start:
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rbx</span><span>, </span><span style=color:#ffb454;>data_buffer
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>edx</span><span>, </span><span style=color:#f29718;>1
+</span></code></pre><p>That shaves off about 10 instructions from our hello world program.<p>We can make a similar optimization after realizing that we always set <code>rsi</code> to the value of <code>rbx</code> before doing a syscall. Why don't we just use <code>rsi</code> instead of <code>rbx</code> everywhere, and then we can make instructions like <code>mov rsi, rbx</code> superfluous. This shaves off another 10 instructions.<pre class=language-asm data-lang=asm style=background-color:#0f1419;color:#bfbab0;><code class=language-asm data-lang=asm><span style=color:#ffb454;>loop2_close:
+</span><span style=color:#ff7733;>add </span><span style=color:#f29718;>rsi</span><span>, -</span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rsi</span><span>], -</span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>cmp </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rsi</span><span>], </span><span style=color:#f29718;>0
+</span><span style=color:#ff7733;>jne </span><span style=color:#ffb454;>loop0_open
+</span><span style=color:#ffb454;>loop0_close:
+</span><span style=color:#ff7733;>add </span><span style=color:#f29718;>rsi</span><span>, </span><span style=color:#f29718;>2
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rax</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rdi</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>syscall
+</span><span style=color:#ff7733;>add </span><span style=color:#f29718;>rsi</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>add </span><span style=color:#f07178;>BYTE PTR </span><span>[</span><span style=color:#f29718;>rsi</span><span>], -</span><span style=color:#f29718;>3
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rax</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>mov </span><span style=color:#f29718;>rdi</span><span>, </span><span style=color:#f29718;>1
+</span><span style=color:#ff7733;>syscall
+</span></code></pre><p>There's still plenty of optimization to be done — for example, removing the redundant <code>mov rax, 1</code> and <code>mov rdi, 1</code> between sequential write syscalls and trivial things like removing empty loops or additions by 0 — but I think what we have so far is sufficient to get the idea.<p>If we compare our first interpreter to our optimizing compiler on <a href=https://www.reddit.com/r/brainfuck/comments/847vl0/prime_number_generator_in_brainfuck/>this program which finds all the primes under 255</a><sup class=footnote-reference><a href=#1>1</a></sup>, our compiled program prints all the primes in 13 seconds. The interpreter ran for several minutes without printing anything before I killed it.<p>Here's our final code, if you'd like to modify it to generate ARM assembly or add more optimizations.<pre class=language-rust data-lang=rust style=background-color:#0f1419;color:#bfbab0;><code class=language-rust data-lang=rust><span style=color:#bfbab0cc;>#</span><span>[</span><span style=color:#ffb454;>derive</span><span>(Debug</span><span style=color:#bfbab0cc;>,</span><span> Copy</span><span style=color:#bfbab0cc;>,</span><span> Clone)]
+</span><span style=color:#ff7733;>enum </span><span style=color:#59c2ff;>Instruction </span><span>{
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// > and <
+</span><span>    PointerAdd(</span><span style=color:#ff7733;>isize</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// + and -
+</span><span>    ValueAdd(</span><span style=color:#ff7733;>isize</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// .
+</span><span>    Dot</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// ,
+</span><span>    Comma</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// [
+</span><span>    BracketOpen</span><span style=color:#bfbab0cc;>,
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>/// ]
+</span><span>    BracketClose</span><span style=color:#bfbab0cc;>,
+</span><span>}
+</span><span>
+</span><span style=color:#ff7733;>fn </span><span style=color:#ffb454;>parse_instructions</span><span>(</span><span style=color:#f29718;>bytes</span><span style=color:#bfbab0cc;>: </span><span style=color:#f29668;>&</span><span>[</span><span style=color:#ff7733;>u8</span><span>]) </span><span style=color:#bfbab0cc;>-> </span><span style=font-style:italic;color:#39bae6;>Vec</span><span>&LTInstruction> {
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> instructions </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>Vec</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>for</span><span> b </span><span style=color:#f29668;>in</span><span> bytes {
+</span><span>        </span><span style=color:#ff7733;>match</span><span> b {
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'>' </span><span style=color:#f29668;>| </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'<' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>let</span><span> v </span><span style=color:#f29668;>= </span><span style=color:#ff7733;>match</span><span> b {
+</span><span>                    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'>' </span><span style=color:#f29668;>=> </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'<' </span><span style=color:#f29668;>=> -</span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                    </span><span style=color:#f29668;>_ => </span><span style=color:#f07178;>unreachable!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>                }</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>if let </span><span style=font-style:italic;color:#39bae6;>Some</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>PointerAdd(n2)) </span><span style=color:#f29668;>=</span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>last_mut</span><span>() {
+</span><span>                    </span><span style=color:#f29668;>*</span><span>n2 </span><span style=color:#f29668;>+=</span><span> v</span><span style=color:#bfbab0cc;>;
+</span><span>                } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>                    instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>PointerAdd(v))
+</span><span>                }
+</span><span>            }
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>| </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>let</span><span> v </span><span style=color:#f29668;>= </span><span style=color:#ff7733;>match</span><span> b {
+</span><span>                    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'+' </span><span style=color:#f29668;>=> </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                    </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'-' </span><span style=color:#f29668;>=> -</span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>,
+</span><span>                    </span><span style=color:#f29668;>_ => </span><span style=color:#f07178;>unreachable!</span><span>()</span><span style=color:#bfbab0cc;>,
+</span><span>                }</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                </span><span style=color:#ff7733;>if let </span><span style=font-style:italic;color:#39bae6;>Some</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>ValueAdd(n2)) </span><span style=color:#f29668;>=</span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>last_mut</span><span>() {
+</span><span>                    </span><span style=color:#f29668;>*</span><span>n2 </span><span style=color:#f29668;>+=</span><span> v</span><span style=color:#bfbab0cc;>;
+</span><span>                } </span><span style=color:#ff7733;>else </span><span>{
+</span><span>                    instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>ValueAdd(v))
+</span><span>                }
+</span><span>            }
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'.' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>Dot)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>',' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>Comma)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>'[' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>BracketOpen)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>']' </span><span style=color:#f29668;>=></span><span> instructions</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(Instruction</span><span style=color:#f29668;>::</span><span>BracketClose)</span><span style=color:#bfbab0cc;>,
+</span><span>            </span><span style=color:#f29668;>_ => </span><span>{}
+</span><span>        }
+</span><span>    }
+</span><span>
+</span><span>    instructions
+</span><span>}
+</span><span>
+</span><span style=color:#ff7733;>fn </span><span style=color:#ffb454;>main</span><span>() {
+</span><span>    </span><span style=color:#ff7733;>let</span><span> instructions </span><span style=color:#f29668;>= </span><span style=color:#f07178;>parse_instructions</span><span>(</span><span style=color:#ff7733;>b</span><span style=color:#c2d94c;>"
+</span><span style=color:#c2d94c;>        ++++++++[>++++[>++>+++>+++>+<<<&LT-]>+>+>->>+[<]&LT-]>>.>---.+++++++..+++.>>.&LT-.<.+++.------.--------.>>+.>++.
+</span><span style=color:#c2d94c;>    "</span><span>)</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> asm </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>String</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// nasm setup
+</span><span>    asm </span><span style=color:#f29668;>+= </span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>%use masm
+</span><span style=color:#c2d94c;>
+</span><span style=color:#c2d94c;>BITS 64
+</span><span style=color:#c2d94c;>
+</span><span style=color:#c2d94c;>section .data
+</span><span style=color:#c2d94c;>
+</span><span style=color:#c2d94c;>data_buffer: db 30000 dup (0)
+</span><span style=color:#c2d94c;>
+</span><span style=color:#c2d94c;>section .text
+</span><span style=color:#c2d94c;>
+</span><span style=color:#c2d94c;>global _start
+</span><span style=color:#c2d94c;>
+</span><span style=color:#c2d94c;>_start:
+</span><span style=color:#c2d94c;>mov rsi, data_buffer
+</span><span style=color:#c2d94c;>mov edx, 1
+</span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> label_count </span><span style=color:#f29668;>= </span><span style=color:#f29718;>0</span><span style=color:#bfbab0cc;>;
+</span><span>    </span><span style=color:#ff7733;>let mut</span><span> labels </span><span style=color:#f29668;>= </span><span style=font-style:italic;color:#39bae6;>Vec</span><span style=color:#f29668;>::</span><span>new()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>for</span><span> inst </span><span style=color:#f29668;>in</span><span> instructions {
+</span><span>        </span><span style=color:#ff7733;>match</span><span> inst {
+</span><span>            Instruction</span><span style=color:#f29668;>::</span><span>PointerAdd(n) </span><span style=color:#f29668;>=></span><span> asm </span><span style=color:#f29668;>+= &</span><span style=color:#f07178;>format!</span><span>(</span><span style=color:#c2d94c;>"add rsi, </span><span style=color:#f29718;>{n}</span><span style=color:#95e6cb;>\n</span><span style=color:#c2d94c;>"</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>            Instruction</span><span style=color:#f29668;>::</span><span>ValueAdd(n) </span><span style=color:#f29668;>=></span><span> asm </span><span style=color:#f29668;>+= &</span><span style=color:#f07178;>format!</span><span>(</span><span style=color:#c2d94c;>"add BYTE PTR [rsi], </span><span style=color:#f29718;>{n}</span><span style=color:#95e6cb;>\n</span><span style=color:#c2d94c;>"</span><span>)</span><span style=color:#bfbab0cc;>,
+</span><span>            Instruction</span><span style=color:#f29668;>::</span><span>Dot </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                asm </span><span style=color:#f29668;>+= </span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    mov rax, 1</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    mov rdi, 1</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    syscall</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                "</span><span style=color:#bfbab0cc;>;
+</span><span>            }
+</span><span>            Instruction</span><span style=color:#f29668;>::</span><span>Comma </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                asm </span><span style=color:#f29668;>+= </span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    mov rax, 0</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    mov rdi, 0</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    syscall</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                "
+</span><span>            }
+</span><span>            Instruction</span><span style=color:#f29668;>::</span><span>BracketOpen </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>let</span><span> loop_idx </span><span style=color:#f29668;>=</span><span> label_count</span><span style=color:#bfbab0cc;>;
+</span><span>                label_count </span><span style=color:#f29668;>+= </span><span style=color:#f29718;>1</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                asm </span><span style=color:#f29668;>+= &</span><span style=color:#f07178;>format!</span><span>(
+</span><span>                    </span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    cmp BYTE PTR [rsi], 0</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    je loop</span><span style=color:#f29718;>{loop_idx}</span><span style=color:#c2d94c;>_close</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    loop</span><span style=color:#f29718;>{loop_idx}</span><span style=color:#c2d94c;>_open:</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                "
+</span><span>                )</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                labels</span><span style=color:#f29668;>.</span><span style=color:#f07178;>push</span><span>(loop_idx)</span><span style=color:#bfbab0cc;>;
+</span><span>            }
+</span><span>            Instruction</span><span style=color:#f29668;>::</span><span>BracketClose </span><span style=color:#f29668;>=> </span><span>{
+</span><span>                </span><span style=color:#ff7733;>let</span><span> loop_idx </span><span style=color:#f29668;>=</span><span> labels</span><span style=color:#f29668;>.</span><span style=color:#f07178;>pop</span><span>()</span><span style=color:#f29668;>.</span><span style=color:#f07178;>unwrap</span><span>()</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>                asm </span><span style=color:#f29668;>+= &</span><span style=color:#f07178;>format!</span><span>(
+</span><span>                    </span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    cmp BYTE PTR [rsi], 0</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    jne loop</span><span style=color:#f29718;>{loop_idx}</span><span style=color:#c2d94c;>_open</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                    loop</span><span style=color:#f29718;>{loop_idx}</span><span style=color:#c2d94c;>_close:</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>                "
+</span><span>                )</span><span style=color:#bfbab0cc;>;
+</span><span>            }
+</span><span>        }
+</span><span>    }
+</span><span>
+</span><span>    </span><span style=font-style:italic;color:#5c6773;>// prologue
+</span><span>    asm </span><span style=color:#f29668;>+= </span><span style=color:#c2d94c;>"</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>        mov rax, 60</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>        xor rdi, rdi</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>        syscall</span><span style=color:#95e6cb;>\n</span><span style=color:#bfbab0cc;>\
+</span><span style=color:#c2d94c;>    "</span><span style=color:#bfbab0cc;>;
+</span><span>
+</span><span>    </span><span style=color:#f07178;>println!</span><span>(</span><span style=color:#c2d94c;>"</span><span style=color:#f29718;>{asm}</span><span style=color:#c2d94c;>"</span><span>)</span><span style=color:#bfbab0cc;>;
+</span><span>}
+</span></code></pre><div class=footnote-definition id=1><sup class=footnote-definition-label>1</sup><p>the code linked only finds the primes up to 30, but can be easily modified to find up to 255</div></section></article></main></div><script>window.addEventListener('load', function () {
+            for (const ref of document.getElementsByClassName('footnote-reference')) {
+                const hash = ref.children[0].hash.substring(1);
+                const refhash = 'ref:' + hash;
+                ref.id = refhash;
+            }
+
+            for (const footnote of document.getElementsByClassName('footnote-definition')) {
+                const hash = footnote.id;
+                const refhash = 'ref:' + hash;
+                const backlink = document.createElement('a');
+                backlink.href = '#' + refhash;
+                backlink.className = 'footnote-backlink';
+                backlink.innerText = '↩';
+                const paras = footnote.children;
+                const lastPara = paras[paras.length - 1];
+                lastPara.appendChild(backlink);
+            }
+        });</script><script type=module>/*! instant.page v5.2.0 - (C) 2019-2023 Alexandre Dieulot - https://instant.page/license */
+        let t, e, n, o, i, a = null, s = 65, c = new Set; const r = 1111; function d(t) { o = performance.now(); const e = t.target.closest("a"); m(e) && p(e.href, "high") } function u(t) { if (performance.now() - o < r) return; if (!("closest" in t.target)) return; const e = t.target.closest("a"); m(e) && (e.addEventListener("mouseout", f, { passive: !0 }), i = setTimeout(() => { p(e.href, "high"), i = void 0 }, s)) } function l(t) { const e = t.target.closest("a"); m(e) && p(e.href, "high") } function f(t) { t.relatedTarget && t.target.closest("a") == t.relatedTarget.closest("a") || i && (clearTimeout(i), i = void 0) } function h(t) { if (performance.now() - o < r) return; const e = t.target.closest("a"); if (t.which > 1 || t.metaKey || t.ctrlKey) return; if (!e) return; e.addEventListener("click", function (t) { 1337 != t.detail && t.preventDefault() }, { capture: !0, passive: !1, once: !0 }); const n = new MouseEvent("click", { view: window, bubbles: !0, cancelable: !1, detail: 1337 }); e.dispatchEvent(n) } function m(o) { if (o && o.href && (!n || "instant" in o.dataset)) { if (o.origin != location.origin) { if (!(e || "instant" in o.dataset) || !a) return } if (["http:", "https:"].includes(o.protocol) && ("http:" != o.protocol || "https:" != location.protocol) && (t || !o.search || "instant" in o.dataset) && !(o.hash && o.pathname + o.search == location.pathname + location.search || "noInstant" in o.dataset)) return !0 } } function p(t, e = "auto") { if (c.has(t)) return; const n = document.createElement("link"); n.rel = "prefetch", n.href = t, n.fetchPriority = e, n.as = "document", document.head.appendChild(n), c.add(t) } !function () { if (!document.createElement("link").relList.supports("prefetch")) return; const o = "instantVaryAccept" in document.body.dataset || "Shopify" in window, i = navigator.userAgent.indexOf("Chrome/"); i > -1 && (a = parseInt(navigator.userAgent.substring(i + "Chrome/".length))); if (o && a && a < 110) return; const c = "instantMousedownShortcut" in document.body.dataset; t = "instantAllowQueryString" in document.body.dataset, e = "instantAllowExternalLinks" in document.body.dataset, n = "instantWhitelist" in document.body.dataset; const r = { capture: !0, passive: !0 }; let f = !1, v = !1, g = !1; if ("instantIntensity" in document.body.dataset) { const t = document.body.dataset.instantIntensity; if (t.startsWith("mousedown")) f = !0, "mousedown-only" == t && (v = !0); else if (t.startsWith("viewport")) { const e = navigator.connection && navigator.connection.saveData, n = navigator.connection && navigator.connection.effectiveType && navigator.connection.effectiveType.includes("2g"); e || n || ("viewport" == t ? document.documentElement.clientWidth * document.documentElement.clientHeight < 45e4 && (g = !0) : "viewport-all" == t && (g = !0)) } else { const e = parseInt(t); isNaN(e) || (s = e) } } v || document.addEventListener("touchstart", d, r); f ? c || document.addEventListener("mousedown", l, r) : document.addEventListener("mouseover", u, r); c && document.addEventListener("mousedown", h, r); if (g) { let t = window.requestIdleCallback; t || (t = (t => { t() })), t(function () { const t = new IntersectionObserver(e => { e.forEach(e => { if (e.isIntersecting) { const n = e.target; t.unobserve(n), p(n.href) } }) }); document.querySelectorAll("a").forEach(e => { m(e) && t.observe(e) }) }, { timeout: 1500 }) } }();</script>
