@@ -88,9 +88,9 @@ unique_even_elems = { elem for elem in arr if elem % 2 == 0 }
 
 Though, generator comprehensions are less useful in leetcode problems.
 
-Generators are lazy and will only yield elements when called explicitly. This tends not to matter too much in interviews, but can be useful to 1. save characters when typing and 2. show off your knowledge of python and performance
+Generators are lazy and will only yield elements when they're asked for explicitly using functions like `list(..)` or `next(..)`. This tends not to matter too much in interviews, but can be useful to 1. save characters when typing and 2. show off your knowledge of python and performance.
 
-A generator expression uses parens instead of square brackets. 
+A generator expression uses parens instead of square brackets.
 
 ```py
 elems_generator = (elem for elem in arr)
@@ -136,7 +136,7 @@ arr[0].append("a")
 # arr is now [['a'], ['a'], ['a'], ['a'], ['a']]
 ```
 
-This behavior only affects objects (so most commonly lists and dicts) and does not apply to things like integers or strings. 
+This behavior only affects objects (so most commonly lists and dicts) and does not apply to things like integers or strings.
 
 The workaround for this behavior is to use a list comprehension,
 
@@ -243,6 +243,12 @@ Please don't sort using a custom comparison function. A custom comparison functi
 
 If absolutely necessary, you can use the `cmp` argument to `sorted(..)`.
 
+### Min and max
+
+Python has global functions `min` and `max` which can be used to do exactly what it sounds like. If passed a single iterable as an argument they will find the minimum/maximum element in that collection, and if passed multiple arguments they will find the min/max value among those arguments. If you want to find the min/max value among the elements of several lists, you'll want to spread those lists as arguments, which is discussed more below.
+
+`min` and `max` also accept a `key=` argument, which behaves in the same way that it does for `sorted`.
+
 ## Unpacking and Spreading
 
 ### Iterator unpacking
@@ -299,6 +305,13 @@ a = [1]
 [*a, *[2]] # [1, 2]
 ```
 
+This also works for function arguments, for example `min`
+
+```py
+min([4, 1], [3]) # [3]
+min(*[4, 1], *[3]) # 1
+```
+
 ## Collections
 
 Python's standard library of collections is one of the main reasons I like it so much for interviews
@@ -322,7 +335,7 @@ arr = [1, 2, 1]
 unique = set(arr)
 ```
 
-Dicts can be created in this way, as long as the elements are lists/tuples/other iterators containing exactly two elements. So something like `dict([("key", "value"), ("a", "b")])`. This can be combined with `zip(..)` to easily combine two lists into a key: value dict
+Dicts can be created in this way, as long as the elements are lists/tuples/other iterators containing exactly two elements. So something like `dict([("key", "value"), ("a", "b")])`. This can be combined with `zip(..)` to easily combine two lists into a `key: value` dict:
 
 ```py
 keys = [0, 1, 2]
@@ -333,7 +346,7 @@ combined = dict(zip(keys, values)) # { 0: "a", 1: "b", 2: "c" }
 
 ### Union and intersection of sets
 
-Python sets support unioning and intersecting using `|` and `&` respectively. 
+Python sets support unioning and intersecting using `|` and `&` respectively.
 
 ```py
 set([1]) | set([2]) # { 1, 2 }
@@ -381,6 +394,8 @@ for elem in arr:
     elem_counts[elem] += 1
 ```
 
+`defaultdict` is one of my favorite data structures, and I end up using it more often than regular dictionaries in leetcode problems. A pro tip is that you can specify the name of the data type you want as the constructor to get the default value, so `defaultdict(int)` is the same as `defaultdict(lambda: 0)`, and `defaultdict(list)` is the same as `lambda: []`.
+
 ### `deque`
 
 A less interesting collection, also from the `collections` module. This is a standard double-ended queue and can pop of the front or back with `popleft(..)` and `pop(..)` respectively, with a similar behavior for `.appendleft(..)` and `.append(..)`.
@@ -390,6 +405,8 @@ A less interesting collection, also from the `collections` module. This is a sta
 `Counter` is another utility collection from the `collections` module. It's a pretty basic structure that's more or less a dictionary which maps elements to their number of occurrences. For example, `Counter("aabc")` would give us `{ "a": 2, "b": 1, "c": 1 }`. `Counter` is a bit cooler than just a dictionary because you can add and subtract them and the counts for individual elements will combine, rather than clobbering each other.
 
 For example, `Counter("aabc") + Counter("abd")` would give us `{ "a": 3, "b": 2, "c": 1, "d": 1 }`.
+
+Another cool property is that `Counter` behaves pretty similarly to `defaultdict`: looking up the count for a value which isn't in the dictionary will always return `0`.
 
 I've used this in interviews to, for example, compute the most frequent character in a string and to compute the number of characters that would need to be inserted into two strings to make them equal.
 
@@ -438,7 +455,7 @@ def is_even(n: int) -> bool:
     return n % 2 == 0
 ```
 
-Subsequent calls to the `is_even` function will lookup the `n` parameter in the cache to see if the result has already been computed. 
+Subsequent calls to the `is_even` function will lookup the `n` parameter in the cache to see if the result has already been computed.
 
 For some problems, the cache can end up getting really large and causing memory issues. This generally means that your implementation has a bug (try calling the function less, or reducing the number of parameters the function takes in), but it's also one that can often be solved without changing the implementation. Instead of a cache which never evicts keys, you can use an `@functools.lru_cache` to have keys automatically evicted when the cache goes above a certain size.
 
@@ -452,7 +469,7 @@ def is_even(n: int) -> bool:
 
 Note that `maxsize` doesn't have an underscore.
 
-You also tend to get bonus points from interviewers for mentioning the potentially bad memory consequences of using `@cache`. 
+You also tend to get bonus points from interviewers for mentioning the potentially bad memory consequences of using `@cache`.
 
 ### Prefix sum 1-liner
 
@@ -480,3 +497,43 @@ Using static types in python also generally tends to impress interviewers, and d
 ### Sentinel values with `math.inf`
 
 In a lot of algorithms, you start out with the min/max value being the maximum/minimum possible representable value. In python this can be done trivially using `math.inf` and `-math.inf`.
+
+### My boilerplate for tries
+
+Tries are a niche data structure that come up in some string problems. I have only really seen them in leetcode hards and bonus questions on OAs.
+
+I start with a `TrieNode` class, which makes up the trie:
+
+```py
+class TrieNode:
+    def __init__(self, c: str):
+        self.c = c
+        self.children: dict[str, list[TrieNode]] = {}
+        self.is_end = False
+```
+
+A trie node represents a single character (in this case `c`), and connects that character to others. `children` is a mapping from character to a list of trie nodes. `is_end` is true when this node is the last character in a string. `is_end` doesn't mean that the node can't have any children, just that some string ended here. A case where `is_end` is true but the node still has children is `["a", "ab"]`.
+
+Often `TrieNode` needs to be given more fields to more optimally solve a particular problem. For example, if you wanted to count how many strings have a given prefix, you might modify `TrieNode` to contain a count which keeps track of the number of strings that use the node.
+
+Then I declare a `Trie` class to serve as the root of the trie and expose an API.
+
+```py
+class Trie:
+    def __init__(self):
+        self.root = TrieNode("")
+```
+
+Most trie problems start by inserting a dictionary of words into the trie. The algorithm for adding a string to the trie is 
+
+```py
+def add(self, s: str):
+    root = self.root
+
+    for c in s:
+        if c not in root.children:
+            root.children[c] = TrieNode(c)
+        root = root.children[c]
+
+    root.is_end = True
+```
