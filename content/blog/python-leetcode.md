@@ -3,7 +3,8 @@ title = "Using Python for Leetcode"
 date = "2024-11-03"
 +++
 
-I've done a lot of interviews in a lot of different programming languages. After many years, I've decided that python is the best language for interviewing, and I would even go so far as to say that it's worth learning python even if only for interviewing.
+
+After many technical interviews in a lot of different programming languages, I've decided that python is the best language for interviewing, and I would even go so far as to say that it's worth learning python even if only for interviewing.
 
 Python is a lingua franca almost on the same tier as JavaScript, but has a much more robust standard library and set of syntactic sugar that makes it far easier to use when solving leetcode/interview problems. Some solutions can be a bit "magic," but in general are more readily understood by interviewers and lend themselves to being elegant and reading pretty close to English.
 
@@ -136,7 +137,7 @@ arr[0].append("a")
 # arr is now [['a'], ['a'], ['a'], ['a'], ['a']]
 ```
 
-This behavior only affects objects (so most commonly lists and dicts) and does not apply to things like integers or strings.
+This behavior only matters for mutable objects, so most commonly lists and dicts. Immutable types like integers, strings, and tuples don't run into this issue, since they can't be modified in place.
 
 The workaround for this behavior is to use a list comprehension,
 
@@ -241,7 +242,7 @@ I also want to give a special shoutout to sorting by len, `sorted(arr, key=len)`
 
 Please don't sort using a custom comparison function. A custom comparison function is where you define a function that takes in two values and returns `-1`, `0`, or `1` depending on which value is greater. These are generally easy to typo and much more complex than sorting with a key. There is effectively no leetcode question where it would be better to sort this way than with a key.
 
-If absolutely necessary, you can use the `cmp` argument to `sorted(..)`.
+In some special cases where you really do need a comparison function, you can use `functools.cmp_to_key` function to convert the comparison function to a key function.
 
 ### Min and max
 
@@ -433,6 +434,39 @@ A cool trick is that the smallest value will be at `arr[0]`, so you can peek at 
 
 To pop and push, `heapq.heappop(arr)` and `heapq.heappush(arr, elem)`. There's also `heapq.heappushpop(arr, elem)` that's a bit faster if you want to push and then pop at the same, though this is pretty rare.
 
+
+#### Min and max heaps
+
+Python's `heapq` module, like a lot of other languages, only supports min heaps. In order to implement a max heap, in which you always pop off the largest elements, we need to modify the values we insert into the heap.
+
+For numbers, this is pretty easy. We just always negate the value before inserting into the heap, and after looking up from the heap. For example:
+
+```py
+heap = []
+
+heapq.heappush(-a)
+
+# ...
+
+val = -heapq.heappop(heap)
+```
+
+To use a max heap for other data structures, you can either find some way of negating the comparison, like taking the negative of an array of integers, or by writing a custom class which overrides the `>` and `<` operators.
+
+```py
+class ReversedCompareString:
+    def __init__(self, s):
+        self.s = s
+
+    def __lt__(self, rhs):
+        return self.s > rhs.s
+
+    def __eq__(self, rhs):
+        return self.s == rhs.s
+```
+
+Then you can wrap and unwrap strings in this data structure when inserting and popping out of the heap.
+
 ## Utilities
 
 ### Binary search with `bisect`
@@ -484,7 +518,7 @@ for num in nums:
     prefix_sum.append(prefix_sum[-1] + num)
 ```
 
-I think both work fine, and I may lean towards the latter during an interview.
+I think both work fine, and I may lean towards the latter during an interview, but the former during a leetcode contest.
 
 ## Misc Tips
 
