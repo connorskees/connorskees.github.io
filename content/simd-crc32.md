@@ -3,7 +3,7 @@ title = "Understanding Modern Implementations of CRC32"
 +++
 <!-- title = "An Approachable Explanation of SIMD Accelerated crc32" -->
 
-`CRC32` is a common checksum algorithm, notably found in PNG files. The "CRC" portion stands for cyclic-redundancy-check, as the algorithm is largely based around cyclic codes. The 32 refers to the number of bits 
+`CRC32` is a common checksum algorithm, notably found in zip and PNG files. The "CRC" portion stands for cyclic-redundancy-check, as the algorithm is largely based around cyclic codes. The 32 refers to the number of bits 
 
 Modern implementations of this algorithm are heavily optimized and can take a while to understand. This article attempts give a simple explanation for the scalar implementation of crc32, and then work through the intuition behind the SIMD implementation.
 
@@ -15,6 +15,8 @@ The vectorized portion of this post is largely based on this Intel paper from 20
 <!-- https://github.com/rurban/crcutil -->
 <!-- https://en.wikipedia.org/wiki/Cyclic_redundancy_check -->
 <!-- https://github.com/cloudflare/zlib -->
+
+<!-- ### Computing modulus
 
 ### Multiply _with_ carry
 
@@ -46,7 +48,7 @@ If we don't add this carry, we're performing an operation called carry-less mult
 
 ### How CPUs multiply
 
-How would you quickly multiply a number by 3? You could do 
+How would you quickly multiply a number by 3? You could do  -->
 
 <!-- Most programmers are familiar with simple bit hacks. If you bitshift to the left (`>>`), you can quickly divide a number by 2. If you bitshift to the right (`<<`) you can do the inverse and multiply by 2. -->
 
@@ -64,3 +66,5 @@ How would you quickly multiply a number by 3? You could do
 <!-- https://www.intel.com/content/dam/www/public/us/en/documents/white-papers/crc-iscsi-polynomial-crc32-instruction-paper.pdf -->
 <!-- https://lxp32.github.io/docs/a-simple-example-crc32-calculation/ -->
 <!-- https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#expand=4474&ig_expand=4673,7124&cats=Cryptography&text=crc32 -->
+
+<!-- https://wunkolo.github.io/post/2020/05/pclmulqdq-tricks/ -->
