@@ -1,0 +1,125 @@
+<!doctype html><html><head><meta charset=UTF-8><meta content="IE=edge" http-equiv=X-UA-Compatible><meta content="width=device-width,initial-scale=1.0" name=viewport><title> Iterative Binary Tree Traversal </title><link href=https://connorskees.github.io/fonts.css rel=stylesheet><link href=https://connorskees.github.io/atom.xml rel=alternate type=application/atom+xml><link href=https://connorskees.github.io/theme/light.css rel=stylesheet><link href=https://fonts.googleapis.com rel=preconnect><link href=https://fonts.gstatic.com rel=preconnect><link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap" rel=stylesheet><link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500&display=swap" rel=stylesheet><link href=https://connorskees.github.io/override.css rel=stylesheet><link href=https://connorskees.github.io/main.css media=screen rel=stylesheet><link crossorigin=anonymous href=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css integrity=sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0 rel=stylesheet><script crossorigin=anonymous defer integrity=sha384-PwRUT/YqbnEjkZO0zZxNqcxACrXe+j766U2amXcgMg5457rve2Y7I6ZJSm2A0mS4 src=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js></script><script onload="renderMathInElement(document.body, { delimiters: [
+                {left: '$$', right: '$$', display: false},
+            ] });" crossorigin=anonymous defer integrity=sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05 src=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js></script><body><script src="https://www.googletagmanager.com/gtag/js?id=G-R0T6WNHCFH" async></script><script>window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-R0T6WNHCFH');</script><div class=content><header><div class=main><a href=https://connorskees.github.io></a><div class=socials><a class=social href=https://github.com/connorskees/> <object alt=github data=/social_icons/github.svg height=24 type=image/svg+xml width=24></object> </a></div></div><nav><a style="margin-left: 0.7em" href=/>Home</a></nav></header><main><article><div class=title><div class=page-header>Iterative Binary Tree Traversal</div><div class=meta>Posted on <time>2023-10-06</time></div></div><section class=body><p>There are two primary algorithms for traversing trees: breadth-first search (BFS) and depth-first search (DFS).<p>In the iterative case, both algorithms rely on creating an array-like structure that stores the nodes to be visited. The main difference between these two is that in breadth-first search you pop from the front (requiring a double-ended queue), while in depth-first search you pop from the back (requiring a stack).<p>DFS is trivial to implement recursively; since it relies on a stack, it can reuse the call-stack. As with all recursive algorithms, in general the iterative form is faster because it avoids the overhead of function calls and has better cache-coherence. BFS, in contrast, is most naturally implemented iteratively.<p>The recursive implementation of DFS can be more elegant, and often uses fewer lines, but I tend to find it harder to extend to more complex problems.<p>DFS can be further broken down into pre-order, in-order, and post-order traversal. These traversals change the order in which the root and its left and right children are visited. The specific orderings are:<pre style=background-color:#0f1419;color:#bfbab0;><code><span>pre-order: root -> left -> right
+</span><span>in-order: left -> root -> right
+</span><span>post-order: left -> right -> root
+</span></code></pre><p>The way that I remember this is that the prefix (i.e. pre, in, post) gives the position of <code>root</code> in between <code>left -> right</code>. In other words, pre-order traversal has the root at the start, in-order in the middle, and post-order at the end. Left always comes before right.<p>Pre-order traversal is useful when you're searching for a particular element in a BST, you are copying the tree, or if you want to visit the root nodes before visiting the leaf nodes.<p>In-order traversal is useful if you wish to get a sorted array of nodes, in the case that the tree being traversed over is a valid binary search tree.<p>Post-order traversal is useful if you're deleting a tree (in e.g. C or C++) or if you want to visit the leaf nodes before visiting root nodes.<p>For all examples, I'll use a recursive tree structure that is defined as:<pre class=language-python data-lang=python style=background-color:#0f1419;color:#bfbab0;><code class=language-python data-lang=python><span style=color:#ff7733;>class </span><span style=color:#59c2ff;>TreeNode</span><span>:
+</span><span>    </span><span style=color:#ff7733;>def </span><span style=color:#f07178;>__init__</span><span>(</span><span style=color:#f29718;>self</span><span style=color:#bfbab0cc;>, </span><span style=color:#f29718;>val</span><span style=color:#bfbab0cc;>: </span><span style=font-style:italic;color:#39bae6;>int</span><span style=color:#bfbab0cc;>, </span><span style=color:#f29718;>left</span><span style=color:#bfbab0cc;>: </span><span>Optional[TreeNode]</span><span style=color:#bfbab0cc;>, </span><span style=color:#f29718;>right</span><span style=color:#bfbab0cc;>: </span><span>Optional[TreeNode]):
+</span><span>        </span><span style=font-style:italic;color:#39bae6;>self</span><span style=color:#f29668;>.</span><span>val </span><span style=color:#f29668;>= </span><span>val
+</span><span>        </span><span style=font-style:italic;color:#39bae6;>self</span><span style=color:#f29668;>.</span><span>left </span><span style=color:#f29668;>= </span><span>left
+</span><span>        </span><span style=font-style:italic;color:#39bae6;>self</span><span style=color:#f29668;>.</span><span>right </span><span style=color:#f29668;>= </span><span>right
+</span></code></pre><p>A simple implementation of DFS looks like this:<pre class=language-python data-lang=python style=background-color:#0f1419;color:#bfbab0;><code class=language-python data-lang=python><span style=color:#ff7733;>def </span><span style=color:#ffb454;>dfs</span><span>(</span><span style=color:#f29718;>root</span><span style=color:#bfbab0cc;>: </span><span>TreeNode):
+</span><span>    stack </span><span style=color:#f29668;>= </span><span>[root]
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>while </span><span>stack:
+</span><span>        node </span><span style=color:#f29668;>= </span><span>stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>pop</span><span>()
+</span><span>
+</span><span>        </span><span style=color:#ff7733;>if </span><span style=color:#f29668;>not </span><span>node:
+</span><span>            </span><span style=color:#ff7733;>continue
+</span><span>
+</span><span>        </span><span style=font-style:italic;color:#5c6773;># ... do something with node ...
+</span><span>
+</span><span>        stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node</span><span style=color:#f29668;>.</span><span>left)
+</span><span>        stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node</span><span style=color:#f29668;>.</span><span>right)
+</span></code></pre><p>This isn't any particular traversal, and you're free to change it up quite a bit. This is the basic code I use when I need to visit every node in a tree using DFS.<p>As mentioned previously, BFS is the exact same except that you pop from the front:<pre class=language-python data-lang=python style=background-color:#0f1419;color:#bfbab0;><code class=language-python data-lang=python><span style=color:#ff7733;>from </span><span>collections </span><span style=color:#ff7733;>import </span><span>deque
+</span><span>
+</span><span style=color:#ff7733;>def </span><span style=color:#ffb454;>bfs</span><span>(</span><span style=color:#f29718;>root</span><span style=color:#bfbab0cc;>: </span><span>TreeNode):
+</span><span>    queue </span><span style=color:#f29668;>= </span><span style=color:#ffb454;>deque</span><span>([root])
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>while </span><span>queue:
+</span><span>        node </span><span style=color:#f29668;>= </span><span>queue</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>popleft</span><span>()
+</span><span>
+</span><span>        </span><span style=color:#ff7733;>if </span><span style=color:#f29668;>not </span><span>node:
+</span><span>            </span><span style=color:#ff7733;>continue
+</span><span>
+</span><span>        </span><span style=font-style:italic;color:#5c6773;># ... do something with node ...
+</span><span>
+</span><span>        queue</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node</span><span style=color:#f29668;>.</span><span>left)
+</span><span>        queue</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node</span><span style=color:#f29668;>.</span><span>right)
+</span></code></pre><p>In python, we use the <code>deque</code> data structure to get efficient left-popping. If we were to use a regular array, popping from the left would be an O(n) operation, since all the elements in the array would have to be shifted down by 1. The equivalent data structure in Rust is <a href=https://doc.rust-lang.org/std/collections/struct.VecDeque.html><code>VecDeque</code></a>.<p>Breadth-first search is also called level-order search, as you visit all the nodes in a particular level or row before moving on to the next level.<p>In general it's quite rare to encounter a problem that benefits significantly more with either BFS or DFS. BFS is very useful for finding the shortest path between two nodes. DFS is useful for finding a particular element within the tree. If there is high width and low depth, generally DFS is preferable. Whereas if there is a low width and high depth, BFS is preferable. For a specific input one algorithm may perform better, but in the generic case of all inputs, unless there is some bias in the input, it tends not to matter whether you choose BFS or DFS.<p>Returning to the different kinds of DFS traversals:<p>For a DFS that is explicitly pre-order:<pre class=language-python data-lang=python style=background-color:#0f1419;color:#bfbab0;><code class=language-python data-lang=python><span style=color:#ff7733;>def </span><span style=color:#ffb454;>dfs_pre_order</span><span>(</span><span style=color:#f29718;>root</span><span style=color:#bfbab0cc;>: </span><span>TreeNode):
+</span><span>    stack </span><span style=color:#f29668;>= </span><span>[root]
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>while </span><span>stack:
+</span><span>        node </span><span style=color:#f29668;>= </span><span>stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>pop</span><span>()
+</span><span>
+</span><span>        </span><span style=color:#ff7733;>if </span><span style=color:#f29668;>not </span><span>node:
+</span><span>            </span><span style=color:#ff7733;>continue
+</span><span>
+</span><span>        </span><span style=font-style:italic;color:#5c6773;># ... do something with node ...
+</span><span>
+</span><span>        stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node</span><span style=color:#f29668;>.</span><span>right)
+</span><span>        stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node</span><span style=color:#f29668;>.</span><span>left)
+</span></code></pre><p>This is quite similar to the above DFS example, except that we push the right node on the stack before the left node.<p>For a DFS that is explicitly in-order:<pre class=language-python data-lang=python style=background-color:#0f1419;color:#bfbab0;><code class=language-python data-lang=python><span style=color:#ff7733;>def </span><span style=color:#ffb454;>dfs_in_order</span><span>(</span><span style=color:#f29718;>root</span><span style=color:#bfbab0cc;>: </span><span>TreeNode):
+</span><span>    current </span><span style=color:#f29668;>= </span><span>root
+</span><span>    stack </span><span style=color:#f29668;>= </span><span>[]
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>while </span><span>stack </span><span style=color:#f29668;>or </span><span>current:
+</span><span>        </span><span style=color:#ff7733;>if </span><span>current:
+</span><span>            stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(current)
+</span><span>            current </span><span style=color:#f29668;>= </span><span>current</span><span style=color:#f29668;>.</span><span>left
+</span><span>        </span><span style=color:#ff7733;>else</span><span>:
+</span><span>            node </span><span style=color:#f29668;>= </span><span>stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>pop</span><span>()
+</span><span>
+</span><span>            </span><span style=font-style:italic;color:#5c6773;># ... do something with node ...
+</span><span>
+</span><span>            current </span><span style=color:#f29668;>= </span><span>node</span><span style=color:#f29668;>.</span><span>right
+</span></code></pre><p>The difference here is that we now keep track of a new value, <code>current</code>, which we use to traverse the left child nodes prior to the root and right child nodes.<p>It is also possible to implement in-order traversal iteratively using O(1) extra space (i.e. with no stack) using <a href=https://stackoverflow.com/questions/5502916/explain-morris-inorder-tree-traversal-without-using-stacks-or-recursion>Morris traversal</a>. This algorithm works by temporarily modifying the tree as it is traversed over. It is rare to see this algorithm asked about, so I will omit discussing the particulars here.<p>Post-order traversal is slightly more complex than pre- and in- order traversal. In order to visit the leaf nodes before the root nodes, we have to traverse the entire tree to get to the leaf nodes. The simplest implementation is one which uses two stacks. The first to perform a basic DFS, and then the second which is built up during the first DFS:<pre class=language-python data-lang=python style=background-color:#0f1419;color:#bfbab0;><code class=language-python data-lang=python><span style=color:#ff7733;>def </span><span style=color:#ffb454;>dfs_post_order</span><span>(</span><span style=color:#f29718;>root</span><span style=color:#bfbab0cc;>: </span><span>TreeNode):
+</span><span>    stack1 </span><span style=color:#f29668;>= </span><span>[root]
+</span><span>    stack2 </span><span style=color:#f29668;>= </span><span>[]
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>while </span><span>stack1:
+</span><span>        node </span><span style=color:#f29668;>= </span><span>stack1</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>pop</span><span>()
+</span><span>
+</span><span>        </span><span style=color:#ff7733;>if </span><span style=color:#f29668;>not </span><span>node:
+</span><span>            </span><span style=color:#ff7733;>continue
+</span><span>
+</span><span>        stack2</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node)
+</span><span>
+</span><span>        stack1</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node</span><span style=color:#f29668;>.</span><span>left)
+</span><span>        stack1</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(node</span><span style=color:#f29668;>.</span><span>right)
+</span><span>
+</span><span>    </span><span style=color:#ff7733;>while </span><span>stack2:
+</span><span>        node </span><span style=color:#f29668;>= </span><span>stack2</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>pop</span><span>()
+</span><span>
+</span><span>        </span><span style=font-style:italic;color:#5c6773;># ... do something with node ...
+</span></code></pre><p>Note that in the second loop, this is the same as <code>for node in reversed(stack2)</code>.<p>It is also possible to implement post-order traversal using a single stack, though I think the implementation is a bit more annoying to remember.<pre class=language-python data-lang=python style=background-color:#0f1419;color:#bfbab0;><code class=language-python data-lang=python><span style=color:#ff7733;>def </span><span style=color:#ffb454;>dfs_post_order_one_stack</span><span>(</span><span style=color:#f29718;>root</span><span style=color:#bfbab0cc;>: </span><span>TreeNode):
+</span><span>    current </span><span style=color:#f29668;>= </span><span>root
+</span><span>    stack </span><span style=color:#f29668;>= </span><span>[]
+</span><span>     
+</span><span>    </span><span style=color:#ff7733;>while </span><span>current </span><span style=color:#f29668;>or </span><span>stack:
+</span><span>        </span><span style=color:#ff7733;>while </span><span>current:
+</span><span>            stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(current)
+</span><span>            stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>append</span><span>(current)
+</span><span>            current </span><span style=color:#f29668;>= </span><span>current</span><span style=color:#f29668;>.</span><span>left
+</span><span>         
+</span><span>        node </span><span style=color:#f29668;>= </span><span>stack</span><span style=color:#f29668;>.</span><span style=color:#ffb454;>pop</span><span>()
+</span><span> 
+</span><span>        </span><span style=color:#ff7733;>if </span><span>stack </span><span style=color:#f29668;>and </span><span>stack[</span><span style=color:#f29668;>-</span><span style=color:#f29718;>1</span><span>] </span><span style=color:#f29668;>== </span><span>node:
+</span><span>            current </span><span style=color:#f29668;>= </span><span>node</span><span style=color:#f29668;>.</span><span>right
+</span><span>        </span><span style=color:#ff7733;>else</span><span>:
+</span><span>            </span><span style=font-style:italic;color:#5c6773;># ... do something with node ...
+</span><span>            current </span><span style=color:#f29668;>= </span><span style=color:#f29718;>None
+</span></code></pre></section></article></main></div><script>window.addEventListener('load', function () {
+            for (const ref of document.getElementsByClassName('footnote-reference')) {
+                const hash = ref.children[0].hash.substring(1);
+                const refhash = 'ref:' + hash;
+                ref.id = refhash;
+            }
+
+            for (const footnote of document.getElementsByClassName('footnote-definition')) {
+                const hash = footnote.id;
+                const refhash = 'ref:' + hash;
+                const backlink = document.createElement('a');
+                backlink.href = '#' + refhash;
+                backlink.className = 'footnote-backlink';
+                backlink.innerText = '↩';
+                const paras = footnote.children;
+                const lastPara = paras[paras.length - 1];
+                lastPara.appendChild(backlink);
+            }
+        });</script><script type=module>/*! instant.page v5.2.0 - (C) 2019-2023 Alexandre Dieulot - https://instant.page/license */
+        let t, e, n, o, i, a = null, s = 65, c = new Set; const r = 1111; function d(t) { o = performance.now(); const e = t.target.closest("a"); m(e) && p(e.href, "high") } function u(t) { if (performance.now() - o < r) return; if (!("closest" in t.target)) return; const e = t.target.closest("a"); m(e) && (e.addEventListener("mouseout", f, { passive: !0 }), i = setTimeout(() => { p(e.href, "high"), i = void 0 }, s)) } function l(t) { const e = t.target.closest("a"); m(e) && p(e.href, "high") } function f(t) { t.relatedTarget && t.target.closest("a") == t.relatedTarget.closest("a") || i && (clearTimeout(i), i = void 0) } function h(t) { if (performance.now() - o < r) return; const e = t.target.closest("a"); if (t.which > 1 || t.metaKey || t.ctrlKey) return; if (!e) return; e.addEventListener("click", function (t) { 1337 != t.detail && t.preventDefault() }, { capture: !0, passive: !1, once: !0 }); const n = new MouseEvent("click", { view: window, bubbles: !0, cancelable: !1, detail: 1337 }); e.dispatchEvent(n) } function m(o) { if (o && o.href && (!n || "instant" in o.dataset)) { if (o.origin != location.origin) { if (!(e || "instant" in o.dataset) || !a) return } if (["http:", "https:"].includes(o.protocol) && ("http:" != o.protocol || "https:" != location.protocol) && (t || !o.search || "instant" in o.dataset) && !(o.hash && o.pathname + o.search == location.pathname + location.search || "noInstant" in o.dataset)) return !0 } } function p(t, e = "auto") { if (c.has(t)) return; const n = document.createElement("link"); n.rel = "prefetch", n.href = t, n.fetchPriority = e, n.as = "document", document.head.appendChild(n), c.add(t) } !function () { if (!document.createElement("link").relList.supports("prefetch")) return; const o = "instantVaryAccept" in document.body.dataset || "Shopify" in window, i = navigator.userAgent.indexOf("Chrome/"); i > -1 && (a = parseInt(navigator.userAgent.substring(i + "Chrome/".length))); if (o && a && a < 110) return; const c = "instantMousedownShortcut" in document.body.dataset; t = "instantAllowQueryString" in document.body.dataset, e = "instantAllowExternalLinks" in document.body.dataset, n = "instantWhitelist" in document.body.dataset; const r = { capture: !0, passive: !0 }; let f = !1, v = !1, g = !1; if ("instantIntensity" in document.body.dataset) { const t = document.body.dataset.instantIntensity; if (t.startsWith("mousedown")) f = !0, "mousedown-only" == t && (v = !0); else if (t.startsWith("viewport")) { const e = navigator.connection && navigator.connection.saveData, n = navigator.connection && navigator.connection.effectiveType && navigator.connection.effectiveType.includes("2g"); e || n || ("viewport" == t ? document.documentElement.clientWidth * document.documentElement.clientHeight < 45e4 && (g = !0) : "viewport-all" == t && (g = !0)) } else { const e = parseInt(t); isNaN(e) || (s = e) } } v || document.addEventListener("touchstart", d, r); f ? c || document.addEventListener("mousedown", l, r) : document.addEventListener("mouseover", u, r); c && document.addEventListener("mousedown", h, r); if (g) { let t = window.requestIdleCallback; t || (t = (t => { t() })), t(function () { const t = new IntersectionObserver(e => { e.forEach(e => { if (e.isIntersecting) { const n = e.target; t.unobserve(n), p(n.href) } }) }); document.querySelectorAll("a").forEach(e => { m(e) && t.observe(e) }) }, { timeout: 1500 }) } }();</script>
