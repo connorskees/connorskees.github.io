@@ -23,9 +23,9 @@ fn main() {
 
     let bpp = reader.info().bytes_per_pixel();
     let width = reader.info().width;
-    let length = reader.info().raw_row_length();
+    let height = reader.info().height;
 
-    let mut buffer = vec![0; bpp * width as usize * length as usize];
+    let mut buffer = vec![0; bpp * width as usize * height as usize];
 
     while let Some(row) = reader.next_row().unwrap() {
         buffer.extend_from_slice(row.data());
@@ -85,7 +85,7 @@ Reading this output isn't too complex. The first column displays a percentage of
 
 Does this profile make sense? 
 
-The second line looks like it belongs. We'd expect decoding the next interlaced row to be the bulk of the time in a benchmark where we loop over the rows of a PNG file. [`image-rs/png` uses `#![forbid(unsafe)]`](https://github.com/image-rs/image-png/pull/336), which means that unless they're using an external crate, they likely don't use handwritten SIMD intrinsics to decode [PNG filters](https://www.w3.org/TR/PNG-Filters.html). LLVM _can_ do ok autovectorizing sometimes, but in general one would expect the equivalent higher level code to not be as fast. It makes sense that this might be a bit slow.
+The second line looks like it belongs. We'd expect decoding the next interlaced row to be the bulk of the time in a benchmark where we loop over the rows of a PNG file. [`image-rs/png` uses `#![forbid(unsafe_code)]`](https://github.com/image-rs/image-png/pull/336), which means that unless they're using an external crate, they likely don't use handwritten SIMD intrinsics to decode [PNG filters](https://www.w3.org/TR/PNG-Filters.html). LLVM _can_ do ok autovectorizing sometimes, but in general one would expect the equivalent higher level code to not be as fast. It makes sense that this might be a bit slow.
 
 So we expect that most of the time would be spent in `png::decoder::Reader<R>::next_raw_interlaced_row`, but what about `miniz_oxide::inflate::core::transfer`?
 
@@ -456,7 +456,7 @@ A 1% improvement. These results are barely above random noise, even though we re
 
 Looking at the assembly, right now our implementation is entirely scalar. We load one array element at a time, mask it, and then copy it to the out position. It should be trivial for the compiler to vectorize this, so what's preventing it?
 
-There's two problems here. First, we mask the array indices with `out_buf_size_mask`, which means its possible for us to be forced to copy non-consecutive elements from the array. Non-consecutive reads may prevent us from using SIMD here at all.
+There's two problems here. First, we mask the array indices with `out_buf_size_mask`, which means it's possible for us to be forced to copy non-consecutive elements from the array. Non-consecutive reads may prevent us from using SIMD here at all.
 
 The other issue is that our data is highly dependent on previous calculations. This is especially apparent when `source_pos` and `out_pos` differ by less than 4. We can see this if we think through an example where our array is `[1, 2, 3, 4, 5, 6, 7, 8]`, `source_pos` is 0, and `out_pos` is 2. We can pretend we don't do any masking for now. Here's what the code looks like if we substitute concrete values for `source_pos` and `out_pos`:
 
@@ -473,7 +473,7 @@ out_slice[5] = out_slice[3]
 
 After the first iteration, the array is now `[1, 2, 1, 2, 1, 2, 7, 8]`.
 
-On the third line of our loop, we depend on the results of the first line of our loop. if we tried to load all the values for this iteration at once, we wouldn't get the correct result. We'll have to be really creative if we end up having to work around this dependency in the general case[^2].
+On the third line of our loop, we depend on the results of the first line of our loop. If we tried to load all the values for this iteration at once, we wouldn't get the correct result. We'll have to be really creative if we end up having to work around this dependency in the general case[^2].
 
 Let's look at the first problem -- masking can cause non-consecutive reads. Is there any way around this? One thing we could look at is the value we're masking by. If it's always the same value, we might be able to make some interesting optimizations. To inspect its value, we can use an ad hoc profiling tool called [`counts`](https://blog.mozilla.org/nnethercote/2018/07/24/ad-hoc-profiling/) that I really love. To use it, we just need to insert some prints into the code and then pipe the results to `counts`.
 
@@ -514,7 +514,7 @@ We run in release mode just because it's prohibitively slow to execute in debug 
 
 Looking at the output, the first number in parentheses is just the line number of the output. The second number is the count for the given value. The last number in the output is the value that we printed.
 
-Based on this, we can see that the mask value is always the same. It looks like some large 64 bit integer. I don't have special 64 bit integers memorized, so lets open up a python repl to see what it looks like in binary.
+Based on this, we can see that the mask value is always the same. It looks like some large 64 bit integer. I don't have special 64 bit integers memorized, so let's open up a python repl to see what it looks like in binary.
 
 ```python
 >>> bin(18446744073709551615)
@@ -671,7 +671,7 @@ fn transfer(
 }
 ```
 
-We can't compute the `fill_byte` as an argument to `.fill(..)` because of rust's borrow checker, so we have to bring out as a separate variable. We have to update the `source_pos` and `out_pos` in our fast path because the later match statement depends on their values.
+We can't compute the `fill_byte` as an argument to `.fill(..)` because of rust's borrow checker, so we have to bring it out as a separate variable. We have to update the `source_pos` and `out_pos` in our fast path because the later match statement depends on their values.
 
 Now let's compile this and compare it to our original binary.
 

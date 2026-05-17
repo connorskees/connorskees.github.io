@@ -31,7 +31,7 @@ BF lacks types, variables, functions, and even idioms for doing things like mult
 
 ## Writing a Brainfuck Interpreter
 
-Interpreters are generally easier to write than compilers. You don't need to know assembly or any complex compiler algorithms — you just need to know the semantics of your operation and you can implement it in whatever language you want. We'll start by writing a simple BF interpreter to get a sense of BF's semantics, and also so that we have something to compare our compiler to.
+Interpreters are generally easier to write than compilers. You don't need to know assembly or how to write an optimization pass — you just need to know the semantics of your operations and you can implement it in whatever language you want. We'll start by writing a simple BF interpreter to get a sense of BF's semantics, and also so that we have something to compare our compiler to.
 
 The first thing we need to do for our interpreter is initialize the data and the instruction buffers. This is actually not that dissimilar to how your operating system loads executable files. 
 
@@ -159,7 +159,7 @@ b'[' => {
 }
 ```
 
-Here, we either execute the following instruction if `data_buffer[data_ptr]` is 0, otherwise we jump to the instruction after the matching `]`. The code for implementing `]` looks very similar, but we iterate in reverse.
+Here, we either execute the following instruction if `data_buffer[data_ptr]` is nonzero, otherwise we jump to the instruction after the matching `]`. The code for implementing `]` looks very similar, but we iterate in reverse.
 
 Putting everything together:
 
@@ -456,7 +456,7 @@ _start:
 
 Now we've translated our pointers and memory. It's time to start working on the instructions.
 
-Like before, we loop through all our instructions.
+Like before, we loop through all of our instructions.
 
 ```rust
 fn main() {
@@ -510,7 +510,7 @@ syscall
 
 This is our implementation of `.`, which prints to stdout. Next we have to do a [read](https://en.wikipedia.org/wiki/Read_(system_call)).
 
-The API for read is pretty similar. It takes a file descriptor (0 for stdin), a pointer to somewhere in memory to write, and the number of bytes to read from stdin.
+The API for read is pretty similar. It takes a file descriptor (0 for stdin), a pointer to somewhere in memory to write to, and the number of bytes to read from stdin.
 
 ```asm
 ; select the read syscall on Linux
@@ -778,7 +778,7 @@ mov rdi, 1
 syscall
 ```
 
-There's still plenty of optimization to be done — for example, removing the redundant `mov rax, 1` and `mov rdi, 1` between sequential write syscalls and trivial things like removing empty loops or additions by 0 — but I think what we have so far is sufficient to get the idea.
+There's still plenty of optimization to be done — for example, removing the redundant `mov rax, 1` and `mov rdi, 1` between sequential write syscalls and trivial things like removing additions by 0 — but I think what we have so far is sufficient to get the idea.
 
 If we compare our first interpreter to our optimizing compiler on [this program which finds all the primes under 255](https://www.reddit.com/r/brainfuck/comments/847vl0/prime_number_generator_in_brainfuck/)[^1], our compiled program prints all the primes in 13 seconds. The interpreter ran for several minutes without printing anything before I killed it.
 

@@ -571,3 +571,34 @@ def add(self, s: str):
 
     root.is_end = True
 ```
+
+### My boilerplate for union finds
+
+Union finds are graph data structures that are useful for grouping things.
+
+```py
+class UnionFind:
+    def __init__(self):
+        self.nodes = {}
+
+    def root(self, a):
+        root = a
+
+        if root not in self.nodes:
+            self.nodes[root] = root
+            return root
+
+        while self.nodes[root] != root:
+            root = self.nodes[root]
+
+        while self.nodes[a] != a:
+            self.nodes[a], a = root, self.nodes[a]
+
+        return root
+
+    def link(self, a, b):
+        a = self.root(a)
+        b = self.root(b)
+
+        self.nodes[b] = a
+```
